@@ -2,7 +2,7 @@ import { DEFAULT_API_URL } from './config.js';
 import { state, setDetectedItems, addToCart } from './state.js';
 import { loadConfig } from './api.js';
 import { renderCart, renderDetected, addToHistory } from './ui.js';
-import { processSmartInput, extractHeaderData, guessCategory } from './logic.js';
+import { processSmartInput, extractHeaderData } from './logic.js';
 import { saveData as apiSaveData } from './api.js';
 
 

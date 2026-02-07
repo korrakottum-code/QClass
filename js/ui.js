@@ -189,34 +189,30 @@ function attachDetectedEvents() {
             if (field === 'program') {
                 updateDetectedItem(index, 'program', value);
 
-                // --- LEARNING TRIGGER ---
+                // --- LEARNING TRIGGER (Program) ---
                 const item = state.detectedItems[index];
                 if (item && item.originalName && value) {
-                    learnKeyword(item.originalName, value);
+                    learnKeyword(item.originalName, value, item.sub); // Keep existing sub if any, or empty
 
-                    // Toast Notification
-                    const Toast = Swal.mixin({
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 2000,
-                        timerProgressBar: true,
-                        didOpen: (toast) => {
-                            toast.addEventListener('mouseenter', Swal.stopTimer)
-                            toast.addEventListener('mouseleave', Swal.resumeTimer)
-                        }
-                    });
-
-                    Toast.fire({
-                        icon: 'success',
-                        title: `จำแล้ว! "${item.originalName}" = ${value}`
-                    });
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+                    Toast.fire({ icon: 'success', title: `จำหมวดแล้ว! "${item.originalName}" = ${value}` });
                 }
                 // ------------------------
 
                 renderDetected();
             } else if (field === 'sub') {
                 updateDetectedItem(index, 'sub', value);
+
+                // --- LEARNING TRIGGER (Sub) ---
+                const item = state.detectedItems[index];
+                if (item && item.originalName && item.program && value) {
+                    learnKeyword(item.originalName, item.program, value);
+
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+                    Toast.fire({ icon: 'success', title: `จำบริการแล้ว! "${item.originalName}" = ${value}` });
+                }
+                // ------------------------
+
                 renderDetected();
             } else if (field === 'que') {
                 updateDetectedItem(index, 'que', value);

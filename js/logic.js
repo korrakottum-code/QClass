@@ -1,37 +1,57 @@
+```javascript
 import { state } from './state.js';
 
-export function guessCategory(name) {
+export function identifyItem(name) {
     const lower = name.toLowerCase().trim();
 
-    // 1. Learned Keywords (Exact match of previous corrections)
+    // 1. Learned Keywords (Exact match)
     if (state.keywordMappings[lower]) {
-        return state.keywordMappings[lower];
+        // Migration check: if old format (string), convert to object
+        const learned = state.keywordMappings[lower];
+        if (typeof learned === 'string') {
+            return { program: learned, sub: '' };
+        }
+        return { program: learned.category, sub: learned.sub || '' };
     }
 
-    // 2. Check exact match in services list
+    // 2. Exact match in services list (Category & Sub)
     for (const cat in state.services) {
-        if (state.services[cat].some(s => lower.includes(s.toLowerCase()) || s.toLowerCase().includes(lower))) {
-            return cat;
+        // Check Category Match
+        if (lower.includes(cat.toLowerCase())) {
+             // If matches category name, try to find sub-service in it
+             const subMatch = state.services[cat].find(s => lower.includes(s.toLowerCase()));
+             return { program: cat, sub: subMatch || '' };
+        }
+
+        // Check Sub-service Match
+        const subMatch = state.services[cat].find(s => lower.includes(s.toLowerCase()) || s.toLowerCase().includes(lower));
+        if (subMatch) {
+            return { program: cat, sub: subMatch };
         }
     }
 
-    // 3. Heuristic Keywords (Hardcoded "Brain")
-    if (lower.includes('botox') || lower.includes('โบ') || lower.includes('ริ้วรอย') || lower.includes('กราม')) return 'Botox';
-    if (lower.includes('filler') || lower.includes('ฟิล') || lower.includes('เติม') || lower.includes('ขมับ') || lower.includes('ร่องแก้ม')) return 'Filler';
-    if (lower.includes('hifu') || lower.includes('ยกกระชับ') || lower.includes('ultra') || lower.includes('ไฮฟุ')) return 'Hifu';
-    if (lower.includes('meso') || lower.includes('เมโส') || lower.includes('fat') || lower.includes('แฟต') || lower.includes('made') || lower.includes('chanel') || lower.includes('face') || lower.includes('หน้าใส') || lower.includes('ฝ้า')) return 'Meso';
-    if (lower.includes('prp') || lower.includes('เลือด')) return 'PRP';
-    if (lower.includes('hair') || lower.includes('laser') || lower.includes('diode') || lower.includes('ipl') || lower.includes('yag') || lower.includes('ขน') || lower.includes('กำจัดขน')) return 'Hair';
-    if (lower.includes('treatment') || lower.includes('สิว') || lower.includes('pico') || lower.includes('acne') || lower.includes('ทรีท') || lower.includes('กดสิว') || lower.includes('mounjaro')) return 'Treatment';
-    if (lower.includes('olagio') || lower.includes('oligio')) return 'Treatment';
-    if (lower.includes('vitamin') || lower.includes('วิตามิน') || lower.includes('drip') || lower.includes('ผิว') || lower.includes('ดริป')) return 'Vitamin';
-    if (lower.includes('promo') || lower.includes('pro') || lower.includes('โปร') || lower.includes('set') || lower.includes('จับคู่') || lower.includes('แถม')) return 'Promo';
-    if (lower.includes('surgery') || lower.includes('ศัลย') || lower.includes('จมูก') || lower.includes('คาง') || lower.includes('ตาสองชั้น') || lower.includes('ดูดไขมัน')) return 'Surgery';
+    // 3. Heuristic / Keywords (Hardcoded)
+    let program = '';
+    if (lower.includes('botox') || lower.includes('โบ') || lower.includes('ริ้วรอย') || lower.includes('กราม')) program = 'Botox';
+    else if (lower.includes('filler') || lower.includes('ฟิล') || lower.includes('เติม') || lower.includes('ขมับ') || lower.includes('ร่องแก้ม')) program = 'Filler';
+    else if (lower.includes('hifu') || lower.includes('ยกกระชับ') || lower.includes('ultra') || lower.includes('ไฮฟุ')) program = 'Hifu';
+    else if (lower.includes('meso') || lower.includes('เมโส') || lower.includes('fat') || lower.includes('แฟต') || lower.includes('made') || lower.includes('chanel') || lower.includes('face') || lower.includes('หน้าใส') || lower.includes('ฝ้า')) program = 'Meso';
+    else if (lower.includes('prp') || lower.includes('เลือด')) program = 'PRP';
+    else if (lower.includes('hair') || lower.includes('laser') || lower.includes('diode') || lower.includes('ipl') || lower.includes('yag') || lower.includes('ขน') || lower.includes('กำจัดขน')) program = 'Hair';
+    else if (lower.includes('treatment') || lower.includes('สิว') || lower.includes('pico') || lower.includes('acne') || lower.includes('ทรีท') || lower.includes('กดสิว') || lower.includes('mounjaro')) program = 'Treatment';
+    else if (lower.includes('olagio') || lower.includes('oligio')) program = 'Treatment';
+    else if (lower.includes('vitamin') || lower.includes('วิตามิน') || lower.includes('drip') || lower.includes('ผิว') || lower.includes('ดริป')) program = 'Vitamin';
+    else if (lower.includes('promo') || lower.includes('pro') || lower.includes('โปร') || lower.includes('set') || lower.includes('จับคู่') || lower.includes('แถม')) program = 'Promo';
+    else if (lower.includes('surgery') || lower.includes('ศัลย') || lower.includes('จมูก') || lower.includes('คาง') || lower.includes('ตาสองชั้น') || lower.includes('ดูดไขมัน')) program = 'Surgery';
+    else if (lower.includes('ปรึกษา')) program = 'Treatment';
 
-    // Generic fallback
-    if (lower.includes('ปรึกษา')) return 'Treatment';
+    // Try to guess sub-service if program found
+    let sub = '';
+    if (program && state.services[program]) {
+        sub = state.services[program].find(s => lower.includes(s.toLowerCase())) || '';
+    }
 
-    return '';
+    return { program, sub };
 }
 
 export function processSmartInput(text) {
@@ -73,11 +93,12 @@ export function processSmartInput(text) {
             if (qty > 100) return;
 
             if (name && qty > 0) {
+                const identified = identifyItem(name);
                 detectedItems.push({
                     id: Date.now() + Math.random(),
-                    program: guessCategory(name),
+                    program: identified.program,
                     originalName: name,
-                    sub: '',
+                    sub: identified.sub,
                     que: qty,
                     verified: false
                 });
@@ -92,11 +113,12 @@ export function processSmartInput(text) {
                 if (qty > 100) return;
 
                 if (name && !isNaN(qty) && qty > 0) {
+                    const identified = identifyItem(name);
                     detectedItems.push({
                         id: Date.now() + Math.random(),
-                        program: guessCategory(name),
+                        program: identified.program,
                         originalName: name,
-                        sub: '',
+                        sub: identified.sub,
                         que: qty,
                         verified: false
                     });
@@ -144,7 +166,7 @@ export function extractHeaderData(text) {
         }
         else if (year > 2500) year -= 543;
 
-        foundDate = `${year}-${month}-${day}`;
+        foundDate = `${ year } -${ month } -${ day } `;
     }
 
     return { branch: foundBranchCode, date: foundDate };

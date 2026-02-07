@@ -7,12 +7,15 @@ export const state = {
     keywordMappings: JSON.parse(localStorage.getItem('keywordMappings') || '{}')
 };
 
-export function learnKeyword(keyword, category) {
+export function learnKeyword(keyword, category, sub = '') {
     if (!keyword || !category) return;
     const cleanKey = keyword.trim().toLowerCase();
-    state.keywordMappings[cleanKey] = category;
+
+    // Store as object: { category: '...', sub: '...' }
+    state.keywordMappings[cleanKey] = { category, sub };
+
     localStorage.setItem('keywordMappings', JSON.stringify(state.keywordMappings));
-    console.log(`Learned: "${cleanKey}" -> ${category}`);
+    console.log(`Learned: "${cleanKey}" -> ${category} / ${sub}`);
 }
 
 export function setServices(newServices) {

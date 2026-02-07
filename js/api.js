@@ -43,7 +43,7 @@ export async function fetchDashboardData() {
     // Note: Google Apps Script Web App GET requests usually redirect to content.
     // If CORS is an issue, this might fail without Proxy.
 
-    const url = localStorage.getItem('API_URL') || 'https://script.google.com/macros/s/AKfycbzG88HYZ13VBsAwsi4t1dY0A1Q4iKhnZ5qvIcAxHdhbCsbxArwV8prLaqZqU59KvwNhBA/exec';
+    const url = localStorage.getItem('API_URL') || 'https://script.google.com/macros/s/AKfycbxH4wjCCDBlMToC0fWxuZyw4rGTyNLjPscFVlfwnqUfwWKjBCLZXbIoSl6jlVj_QmzVxw/exec';
     const fetchUrl = `${url}?action=get_dashboard&limit=3000`;
 
     try {

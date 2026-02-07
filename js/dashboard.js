@@ -113,9 +113,51 @@ export function filterRecords() {
     container.innerHTML = '';
 
     // 1. Filter by Date
+    // DYNAMIC FETCH: Check if we have data for this date
+    const hasDataForDate = mockSubmissions.some(s => s.date === date);
+
+    // If no data found locally, attempt to fetch from server (Specific Date)
+    if (!hasDataForDate) {
+        // This is sync in UI but async fetch. We need to handle this.
+        // Since filterRecords is not async, we might need a loading state here.
+        // Let's make filterRecords async or handle internal promise?
+        // Converting filterRecords to async might break callers if they expect sync return?
+        // No, callers are onclick. But we need to update UI to show loading.
+
+        // We can't await here easily without making function async. 
+        // Let's do a self-calling async logic or check if we are *already* fetching?
+
+        // For simplicity: Show loading, call fetch, then re-call filterRecords
+        container.innerHTML = `<div class="col-span-full text-center py-10"><i class="fa-solid fa-spinner fa-spin text-sky-500 text-2xl"></i><p class="text-gray-400 mt-2">กำลังโหลดข้อมูลเก่า (Server)...</p></div>`;
+
+        const apiUrl = localStorage.getItem('API_URL');
+        if (apiUrl) {
+            fetch(`${apiUrl}?action=get_dashboard&startDate=${date}&endDate=${date}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === 'success' && Array.isArray(res.records) && res.records.length > 0) {
+                        const newRecords = res.records.filter(n => !mockSubmissions.some(o => o.id === n.id));
+                        mockSubmissions = [...mockSubmissions, ...newRecords];
+                        filterRecords(); // Recursion (Safe because now hasDataForDate will be true or records still empty meaning truly no data)
+                    } else {
+                        // Truly empty
+                        container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                            <i class="fa-solid fa-box-open text-4xl mb-2 opacity-50"></i>
+                            <p>ไม่พบข้อมูลวันที่ ${date}</p>
+                        </div>`;
+                    }
+                })
+                .catch(e => {
+                    container.innerHTML = `<div class="col-span-full text-center text-red-400">Failed to load: ${e.message}</div>`;
+                });
+            return; // Stop execution, wait for fetch
+        }
+    }
+
     const dayRecords = mockSubmissions.filter(s => s.date === date);
 
     if (dayRecords.length === 0) {
+        // Same empty state
         container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
             <i class="fa-solid fa-box-open text-4xl mb-2 opacity-50"></i>
             <p>ยังไม่มีข้อมูลสำหรับวันที่เลือก</p>
@@ -206,25 +248,79 @@ function renderMissing() {
     filterMissing();
 }
 
-export function filterMissing() {
+export async function filterMissing() {
     const date = document.getElementById('missingDateFilter').value;
     const list = document.getElementById('missingList');
     list.innerHTML = '';
 
-    // Get branches that submitted
-    const submittedBranches = new Set(mockSubmissions.filter(s => s.date === date).map(s => s.branch));
+    // 0. Check Branches Loaded
+    const allBranches = state.branchMap;
+    if (Object.keys(allBranches).length === 0) {
+        list.innerHTML = `<div class="col-span-2 text-center py-4 text-gray-400"><i class="fa-solid fa-sync fa-spin mr-2"></i>กำลังโหลดข้อมูลสาขา...</div>`;
+        // Try to reload config if missing?
+        const apiUrl = localStorage.getItem('API_URL');
+        if (apiUrl) await loadConfig(apiUrl);
+        if (Object.keys(state.branchMap).length === 0) {
+            list.innerHTML = `<div class="col-span-2 text-center py-4 text-red-400">ไม่พบข้อมูลสาขา (Config Error)</div>`;
+            return;
+        }
+    }
 
-    // Check all branches
-    const allBranches = state.branchMap; // Name -> Code
+    // 1. Dynamic Fetch: Check if we have data for this date?
+    // Optimization: Check if date is "old" (older than 30 days) and not in current cache
+    // Or just simple: If we find 0 records for this date, TRY fetching specific date range from server once.
+    // To avoid loop, we need a flag or separate cache check.
+
+    // For now, let's trust the user needs this date.
+    // If mockSubmissions doesn't include this date, and it's not "today" (which might legitimately be empty),
+    // we should fetch.
+
+    const hasDataForDate = mockSubmissions.some(s => s.date === date);
+    if (!hasDataForDate) {
+        // Show loading then fetch
+        list.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลวันที่ ${date}...</div>`;
+
+        try {
+            const apiUrl = localStorage.getItem('API_URL');
+            if (apiUrl) {
+                // Fetch JUST this date
+                const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${date}&endDate=${date}`);
+                const resData = await response.json();
+
+                if (resData.status === 'success' && Array.isArray(resData.records)) {
+                    // Merge? Or just use for this view?
+                    // Let's merge into mockSubmissions so we don't fetch again
+                    // But filter out duplicates just in case
+                    const newRecords = resData.records.filter(n => !mockSubmissions.some(o => o.id === n.id));
+                    mockSubmissions = [...mockSubmissions, ...newRecords];
+                }
+            }
+        } catch (e) {
+            console.error("Fetch specific date error:", e);
+            list.innerHTML = `<div class="col-span-2 text-center py-4 text-red-400">โหลดข้อมูลไม่สำเร็จ</div>`;
+            return;
+        }
+    }
+
+    // 2. Re-calculate with (potentially) new data
+    const submittedBranches = new Set(mockSubmissions.filter(s => s.date === date).map(s => s.branch));
     const missing = [];
 
-    for (const [name, code] of Object.entries(allBranches)) {
+    for (const [name, code] of Object.entries(state.branchMap)) {
         if (!submittedBranches.has(code)) {
             missing.push(name);
         }
     }
 
     if (missing.length === 0) {
+        // Double check: Is it because it's a future date?
+        const d = new Date(date);
+        const now = new Date();
+        if (d > now) {
+            list.innerHTML = `<div class="col-span-2 text-center py-4 text-gray-400">ยังไม่ถึงวันดังกล่าว</div>`;
+            return;
+        }
+
         list.innerHTML = `<div class="col-span-2 text-center py-4 text-emerald-500 font-bold">🎉 ครบทุกสาขาแล้ว!</div>`;
         return;
     }

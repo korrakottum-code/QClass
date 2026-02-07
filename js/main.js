@@ -23,11 +23,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function initializeConfig() {
-    await loadConfig(API_URL);
-    // UI updates for branch/program after config load are handled via state/dom in api.js? 
-    // Wait, loadConfig only updates state. We need to render options.
-    // Let's implement renderOptions here or in UI.
-    // For simplicity, let's do it here or call a UI function.
+    try {
+        const success = await loadConfig(API_URL);
+        if (!success) {
+            Swal.fire({
+                icon: 'error',
+                title: 'โหลดการตั้งค่าไม่สำเร็จ',
+                text: 'ไม่สามารถดึงข้อมูลจาก Google Sheet ได้ กรุณาตรวจสอบ URL หรือลองใหม่',
+                footer: '<a href="#" onclick="loadConfig()">ลองใหม่ (Retry)</a>'
+            });
+        }
+    } catch (error) {
+        console.error("Init Error:", error);
+        Swal.fire({
+            icon: 'error',
+            title: 'เชื่อมต่อล้มเหลว',
+            text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message
+        });
+    }
 
     renderProgramOptions();
     renderBranchOptions();
@@ -47,6 +60,13 @@ function renderProgramOptions() {
 function renderBranchOptions() {
     const branchSelect = document.getElementById('branchInput');
     branchSelect.innerHTML = '';
+
+    if (Object.keys(state.branchMap).length === 0) {
+        branchSelect.innerHTML = '<option value="">ไม่พบข้อมูลสาขา (ตรวจสอบการตั้งค่า)</option>';
+        return;
+    }
+
+    branchSelect.innerHTML = '<option value="">เลือกสาขา...</option>';
     for (const [name, code] of Object.entries(state.branchMap)) {
         const opt = document.createElement('option');
         opt.value = code;

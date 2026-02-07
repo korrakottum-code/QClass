@@ -77,8 +77,41 @@ function renderBranchOptions() {
 
 function attachGlobalEvents() {
     // Top Bar
-    window.toggleSettings = () => {
-        document.getElementById('settingsBox').classList.toggle('hidden');
+    window.toggleSettings = async () => {
+        const box = document.getElementById('settingsBox');
+
+        // If already showing, just hide it
+        if (!box.classList.contains('hidden')) {
+            box.classList.add('hidden');
+            return;
+        }
+
+        // Verify Admin
+        const { value: pass } = await Swal.fire({
+            title: 'Admin Only',
+            input: 'password',
+            inputLabel: 'ใส่รหัสผ่านเพื่อตั้งค่า (PIN)',
+            inputPlaceholder: 'Pin Code',
+            inputAttributes: {
+                maxlength: 10,
+                autocapitalize: 'off',
+                autocorrect: 'off'
+            },
+            showCancelButton: true
+        });
+
+        // Default PIN: 9999 (Hardcoded for now, can be changed later)
+        if (pass === '9999' || pass === 'admin') {
+            box.classList.remove('hidden');
+        } else if (pass) {
+            Swal.fire({
+                icon: 'error',
+                title: 'รหัสผิด!',
+                text: 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
     };
 
     window.saveApiUrl = () => {

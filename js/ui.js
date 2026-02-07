@@ -188,6 +188,16 @@ function attachDetectedEvents() {
 
             if (field === 'program') {
                 updateDetectedItem(index, 'program', value);
+
+                // --- LEARNING TRIGGER ---
+                const item = state.detectedItems[index];
+                if (item && item.originalName && value) {
+                    import('./state.js').then(module => {
+                        module.learnKeyword(item.originalName, value);
+                    });
+                }
+                // ------------------------
+
                 renderDetected();
             } else if (field === 'sub') {
                 updateDetectedItem(index, 'sub', value);

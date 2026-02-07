@@ -3,8 +3,17 @@ export const state = {
     branchMap: {},
     cart: [],
     detectedItems: [],
-    history: []
+    history: [],
+    keywordMappings: JSON.parse(localStorage.getItem('keywordMappings') || '{}')
 };
+
+export function learnKeyword(keyword, category) {
+    if (!keyword || !category) return;
+    const cleanKey = keyword.trim().toLowerCase();
+    state.keywordMappings[cleanKey] = category;
+    localStorage.setItem('keywordMappings', JSON.stringify(state.keywordMappings));
+    console.log(`Learned: "${cleanKey}" -> ${category}`);
+}
 
 export function setServices(newServices) {
     state.services = newServices;

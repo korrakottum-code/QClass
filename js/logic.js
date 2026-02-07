@@ -1,26 +1,36 @@
 import { state } from './state.js';
 
 export function guessCategory(name) {
-    // Priority: Check exact match in services list first
+    const lower = name.toLowerCase().trim();
+
+    // 1. Learned Keywords (Exact match of previous corrections)
+    if (state.keywordMappings[lower]) {
+        return state.keywordMappings[lower];
+    }
+
+    // 2. Check exact match in services list
     for (const cat in state.services) {
-        if (state.services[cat].some(s => name.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(name.toLowerCase()))) {
+        if (state.services[cat].some(s => lower.includes(s.toLowerCase()) || s.toLowerCase().includes(lower))) {
             return cat;
         }
     }
 
-    // Fallback: Keywords
-    const lower = name.toLowerCase();
-    if (lower.includes('botox') || lower.includes('โบ')) return 'Botox';
-    if (lower.includes('filler') || lower.includes('ฟิล')) return 'Filler';
-    if (lower.includes('hifu') || lower.includes('ยกกระชับ') || lower.includes('ultra')) return 'Hifu';
-    if (lower.includes('meso') || lower.includes('เมโส') || lower.includes('fat') || lower.includes('made') || lower.includes('chanel') || lower.includes('face') || lower.includes('หน้าใส') || lower.includes('ฝ้า')) return 'Meso';
-    if (lower.includes('prp')) return 'PRP';
-    if (lower.includes('laser') || lower.includes('diode') || lower.includes('ipl') || lower.includes('yag') || lower.includes('ขน')) return 'Hair';
-    if (lower.includes('สิว') || lower.includes('pico') || lower.includes('acne') || lower.includes('ทรีท')) return 'Treatment';
+    // 3. Heuristic Keywords (Hardcoded "Brain")
+    if (lower.includes('botox') || lower.includes('โบ') || lower.includes('ริ้วรอย') || lower.includes('กราม')) return 'Botox';
+    if (lower.includes('filler') || lower.includes('ฟิล') || lower.includes('เติม') || lower.includes('ขมับ') || lower.includes('ร่องแก้ม')) return 'Filler';
+    if (lower.includes('hifu') || lower.includes('ยกกระชับ') || lower.includes('ultra') || lower.includes('ไฮฟุ')) return 'Hifu';
+    if (lower.includes('meso') || lower.includes('เมโส') || lower.includes('fat') || lower.includes('แฟต') || lower.includes('made') || lower.includes('chanel') || lower.includes('face') || lower.includes('หน้าใส') || lower.includes('ฝ้า')) return 'Meso';
+    if (lower.includes('prp') || lower.includes('เลือด')) return 'PRP';
+    if (lower.includes('hair') || lower.includes('laser') || lower.includes('diode') || lower.includes('ipl') || lower.includes('yag') || lower.includes('ขน') || lower.includes('กำจัดขน')) return 'Hair';
+    if (lower.includes('treatment') || lower.includes('สิว') || lower.includes('pico') || lower.includes('acne') || lower.includes('ทรีท') || lower.includes('กดสิว') || lower.includes('mounjaro')) return 'Treatment';
     if (lower.includes('olagio') || lower.includes('oligio')) return 'Treatment';
-    if (lower.includes('วิตามิน') || lower.includes('drip') || lower.includes('ผิว')) return 'Vitamin';
-    if (lower.includes('โปร') || lower.includes('set') || lower.includes('จับคู่')) return 'Promo';
+    if (lower.includes('vitamin') || lower.includes('วิตามิน') || lower.includes('drip') || lower.includes('ผิว') || lower.includes('ดริป')) return 'Vitamin';
+    if (lower.includes('promo') || lower.includes('pro') || lower.includes('โปร') || lower.includes('set') || lower.includes('จับคู่') || lower.includes('แถม')) return 'Promo';
+    if (lower.includes('surgery') || lower.includes('ศัลย') || lower.includes('จมูก') || lower.includes('คาง') || lower.includes('ตาสองชั้น') || lower.includes('ดูดไขมัน')) return 'Surgery';
+
+    // Generic fallback
     if (lower.includes('ปรึกษา')) return 'Treatment';
+
     return '';
 }
 

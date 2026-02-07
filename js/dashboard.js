@@ -1,6 +1,7 @@
 import { state } from './state.js';
 // import { generateMockData } from './mock.js'; // REMOVED
 import { fetchDashboardData, loadConfig } from './api.js';
+import { DEFAULT_API_URL } from './config.js'; // Import Default URL
 
 let mockSubmissions = [];
 
@@ -12,7 +13,7 @@ export async function initDashboard() {
     try {
         // Ensure Config is loaded for Branch Map (Critical for Missing Reports)
         if (Object.keys(state.branchMap).length === 0) {
-            const apiUrl = localStorage.getItem('API_URL');
+            const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
             if (apiUrl) {
                 console.log("Loading config for Dashboard...");
                 await loadConfig(apiUrl);
@@ -130,7 +131,7 @@ export function filterRecords() {
         // For simplicity: Show loading, call fetch, then re-call filterRecords
         container.innerHTML = `<div class="col-span-full text-center py-10"><i class="fa-solid fa-spinner fa-spin text-sky-500 text-2xl"></i><p class="text-gray-400 mt-2">กำลังโหลดข้อมูลเก่า (Server)...</p></div>`;
 
-        const apiUrl = localStorage.getItem('API_URL');
+        const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
         if (apiUrl) {
             fetch(`${apiUrl}?action=get_dashboard&startDate=${date}&endDate=${date}`)
                 .then(r => r.json())
@@ -258,7 +259,7 @@ export async function filterMissing() {
     if (Object.keys(allBranches).length === 0) {
         list.innerHTML = `<div class="col-span-2 text-center py-4 text-gray-400"><i class="fa-solid fa-sync fa-spin mr-2"></i>กำลังโหลดข้อมูลสาขา...</div>`;
         // Try to reload config if missing?
-        const apiUrl = localStorage.getItem('API_URL');
+        const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
         if (apiUrl) await loadConfig(apiUrl);
         if (Object.keys(state.branchMap).length === 0) {
             list.innerHTML = `<div class="col-span-2 text-center py-4 text-red-400">ไม่พบข้อมูลสาขา (Config Error)</div>`;
@@ -281,7 +282,7 @@ export async function filterMissing() {
         list.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลวันที่ ${date}...</div>`;
 
         try {
-            const apiUrl = localStorage.getItem('API_URL');
+            const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
             if (apiUrl) {
                 // Fetch JUST this date
                 const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${date}&endDate=${date}`);
@@ -503,7 +504,7 @@ export function editBranchGroup(branchCode, date) {
                                 que: newVal
                             };
 
-                            const apiUrl = localStorage.getItem('API_URL');
+                            const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
                             const queryString = new URLSearchParams(payload).toString();
                             promises.push(
                                 fetch(`${apiUrl}?${queryString}`)

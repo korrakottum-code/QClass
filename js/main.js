@@ -29,7 +29,7 @@ async function initializeConfig() {
             Swal.fire({
                 icon: 'error',
                 title: 'โหลดการตั้งค่าไม่สำเร็จ',
-                text: 'ไม่สามารถดึงข้อมูลจาก Google Sheet ได้ กรุณาตรวจสอบ URL หรือลองใหม่',
+                text: 'ไม่สามารถดึงข้อมูลจาก Google Sheet ได้ (' + API_URL + ') กรุณาตรวจสอบ URL หรือลองใหม่',
                 footer: '<a href="#" onclick="loadConfig()">ลองใหม่ (Retry)</a>'
             });
         }
@@ -38,7 +38,7 @@ async function initializeConfig() {
         Swal.fire({
             icon: 'error',
             title: 'เชื่อมต่อล้มเหลว',
-            text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message
+            html: `เกิดข้อผิดพลาดในการเชื่อมต่อ: ${error.message}<br><small class="text-gray-400 mt-2 block break-all text-xs">${API_URL}</small>`
         });
     }
 

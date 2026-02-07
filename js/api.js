@@ -1,10 +1,16 @@
 import { state, setServices, setBranches } from './state.js';
+import { DEFAULT_API_URL } from './config.js';
 
 export async function loadConfig(apiUrl) {
     if (!apiUrl) return null;
 
     try {
-        const response = await fetch(apiUrl);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout for config
+
+        const response = await fetch(apiUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (data.status === 'success') {
@@ -24,7 +30,7 @@ export async function loadConfig(apiUrl) {
 export function saveData(url, payload) {
     return fetch(url, {
         method: 'POST',
-        mode: 'no-cors', // Important for Google Apps Script Web App
+        mode: 'no-cors',
         cache: 'no-cache',
         headers: {
             'Content-Type': 'application/json',
@@ -35,23 +41,28 @@ export function saveData(url, payload) {
 }
 
 export async function fetchDashboardData() {
-    // We can't really "fetch" with GET from Google Apps Script Web App easily in no-cors mode if it returns JSON 
-    // unless we use JSONP or the script is deployed as "Execute as: Me" and "Who has access: Anyone".
-    // Assuming standard GET request structure.
-
-    // For now, we will try to fetch from the same URL with an action parameter.
-    // Note: Google Apps Script Web App GET requests usually redirect to content.
-    // If CORS is an issue, this might fail without Proxy.
-
-    const url = localStorage.getItem('API_URL') || 'https://script.google.com/macros/s/AKfycbxH4wjCCDBlMToC0fWxuZyw4rGTyNLjPscFVlfwnqUfwWKjBCLZXbIoSl6jlVj_QmzVxw/exec';
-    const fetchUrl = `${url}?action=get_dashboard&limit=3000`;
+    const url = localStorage.getItem('API_URL') || DEFAULT_API_URL;
+    const fetchUrl = `${url}?action=get_dashboard&limit=3000`; // Request only 3000 rows
 
     try {
-        const response = await fetch(fetchUrl);
+        const controller = new AbortController();
+        // 30s timeout for dashboard data (Google Script can be slow)
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const response = await fetch(fetchUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
         return data;
     } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
+        if (error.name === 'AbortError') {
+            throw new Error("Request timed out. (Google Script took too long)");
+        }
         throw error;
     }
 }

@@ -1,4 +1,4 @@
-import { state, removeDetectedItem, updateDetectedItem, clearCart, learnKeyword } from './state.js';
+import { state, removeDetectedItem, updateDetectedItem, clearCart, learnKeyword, learnBranch } from './state.js';
 import { saveData } from './api.js';
 
 export function renderCart() {
@@ -40,12 +40,22 @@ export function renderDetected() {
     const branchName = branchSelect.options[branchSelect.selectedIndex]?.text || 'ไม่ระบุสาขา';
     const totalQty = state.detectedItems.reduce((sum, item) => sum + item.que, 0);
 
+    const dateVal = document.getElementById('dateInput').value;
+    let dateDisplay = '';
+    if (dateVal) {
+        const [y, m, d] = dateVal.split('-');
+        dateDisplay = `${d}/${m}/${Number(y) + 543}`;
+    }
+
+    const headerHtml = `<i class="fa-solid fa-robot mr-1"></i> รายการที่ตรวจพบ <br><span class="mt-2 text-lg bg-indigo-600 text-white px-3 py-1 rounded-lg shadow-md inline-block">${branchName} | ${dateDisplay} | รวม ${totalQty} คิว</span>`;
+
     if (!headerTitle) {
         const h3 = zone.querySelector('h3');
-        h3.innerHTML = `<i class="fa-solid fa-robot mr-1"></i> รายการที่ตรวจพบ <span class="ml-2 text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">${branchName} | รวม ${totalQty} คิว</span>`;
+        h3.innerHTML = headerHtml;
         h3.id = 'detectedHeaderTitle';
+        h3.className = "font-bold text-indigo-800 text-sm flex-1"; // Allow flex grow to not break layout
     } else {
-        headerTitle.innerHTML = `<i class="fa-solid fa-robot mr-1"></i> รายการที่ตรวจพบ <span class="ml-2 text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">${branchName} | รวม ${totalQty} คิว</span>`;
+        headerTitle.innerHTML = headerHtml;
     }
 
     state.detectedItems.forEach((item, index) => {

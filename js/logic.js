@@ -135,15 +135,25 @@ export function extractHeaderData(text) {
     let foundBranchCode = '';
     let foundDate = '';
 
-    // Branch logic matches original
-    // Use state.branchMap
-    for (const [name, code] of Object.entries(state.branchMap)) {
-        if (lowerText.includes(name.toLowerCase())) {
+    // 0. Learned Branch Keywords (Priority)
+    for (const [key, code] of Object.entries(state.branchMappings || {})) {
+        if (lowerText.includes(key)) {
             foundBranchCode = code;
             break;
         }
     }
 
+    // 1. Standard Branch Map (from Sheet)
+    if (!foundBranchCode) {
+        for (const [name, code] of Object.entries(state.branchMap)) {
+            if (lowerText.includes(name.toLowerCase())) {
+                foundBranchCode = code;
+                break;
+            }
+        }
+    }
+
+    // 2. Hardcoded Fallbacks
     if (!foundBranchCode) {
         if (lowerText.includes('ฉะเชิงเทรา')) foundBranchCode = 'CCO';
         else if (lowerText.includes('เครือสหพัฒน์') || lowerText.includes('สหพัฒน์')) foundBranchCode = 'SPN';
@@ -151,6 +161,7 @@ export function extractHeaderData(text) {
         else if (lowerText.includes('หอกาญ') || lowerText.includes('กาญจนบุรี')) foundBranchCode = 'KAN';
         else if (lowerText.includes('อุดร')) foundBranchCode = 'UDN';
         else if (lowerText.includes('ขอนแก่น') || lowerText.includes('กังสดาล')) foundBranchCode = 'KKC';
+        else if (lowerText.includes('โคราช')) foundBranchCode = 'KOR'; // Added per user request example
     }
 
     const dateMatch = text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);

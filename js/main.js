@@ -2,7 +2,7 @@ import { DEFAULT_API_URL } from './config.js';
 import { state, setDetectedItems, addToCart } from './state.js';
 import { loadConfig } from './api.js';
 import { renderCart, renderDetected, addToHistory } from './ui.js';
-import { processSmartInput, extractHeaderData } from './logic.js';
+import { processSmartInput as analyzeText, extractHeaderData } from './logic.js';
 import { saveData as apiSaveData } from './api.js';
 
 
@@ -127,10 +127,13 @@ function attachGlobalEvents() {
     }
 
     // Manual Input
-    document.getElementById('programInput').addEventListener('change', () => {
-        const program = document.getElementById('programInput').value;
+    document.getElementById('programInput').addEventListener('change', (e) => {
+        const program = e.target.value;
         const subSelect = document.getElementById('subInput');
+
+        // Clear old options
         subSelect.innerHTML = '<option value="">2. เลือกบริการย่อย...</option>';
+        subSelect.disabled = true;
 
         if (program && state.services[program]) {
             subSelect.disabled = false;
@@ -140,8 +143,49 @@ function attachGlobalEvents() {
                 opt.innerText = item;
                 subSelect.appendChild(opt);
             });
-        } else {
-            subSelect.disabled = true;
+        }
+    });
+
+    // Branch Change Sync & Learn
+    document.getElementById('branchInput').addEventListener('change', (e) => {
+        renderDetected(); // Sync header immediately
+
+        // Branch Learning Logic
+        const newBranchCode = e.target.value;
+        const text = document.getElementById('smartInput').value;
+        if (newBranchCode && text.trim()) {
+            // Attempt to find a branch keyword in the text that caused a mismatch
+            // This is a naive heuristic: if the text contains a word that looks like it SHOULD be the branch
+            // We can't know for sure which word without user highlighting, but we can try common words
+            // OR we just assume the user wants to associate the *entire* context? No.
+
+            // Allow manual "Teaching" via console or specific UI better? 
+            // For now, let's just Log it, or if we want to be smart:
+            // If the text contains "โคราช" and user selected "NMA", maybe learn "โคราช" -> "NMA"?
+            // But "โคราช" might already be mapped to "KOR". Overwrite?
+
+            // Implementation: Scan keywords? No, too complex to auto-guess.
+            // Let's at least sync the UI which is the main bug. 
+            // For "Add Learning", I'll add a specific check for common Thai branch names not in the map?
+
+            // Simple Heuristic for "Korat" case
+            // If text contains "โคราช" and user selected "NMA", learn "โคราช" -> "NMA"
+            // We can add a list of common potential aliases to check against
+            const potentialAliases = ['โคราช', 'สยาม', 'อโศก', 'ปิ่นเกล้า', 'บางนา', 'รังสิต', 'พระราม 9', 'เชียงใหม่', 'ขอนแก่น', 'หาดใหญ่', 'อุดร', 'อุบล', 'ชลบุรี', 'พัทยา'];
+
+            const lowerText = text.toLowerCase();
+            const foundAlias = potentialAliases.find(alias => lowerText.includes(alias));
+
+            if (foundAlias) {
+                import('./state.js').then(module => {
+                    // Only learn if it differs from default map? 
+                    // Or just overwrite. Overwriting is safer for user correction.
+                    module.learnBranch(foundAlias, newBranchCode);
+
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+                    Toast.fire({ icon: 'success', title: `จำสาขาแล้ว! "${foundAlias}" = ${newBranchCode}` });
+                });
+            }
         }
     });
 
@@ -193,7 +237,7 @@ function attachGlobalEvents() {
             if (!isNaN(d.getTime())) document.getElementById('dateInput').value = headerData.date;
         }
 
-        const items = processSmartInput(text);
+        const items = analyzeText(text);
         if (items.length > 0) {
             setDetectedItems(items);
             renderDetected();

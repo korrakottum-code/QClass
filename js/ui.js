@@ -1,4 +1,4 @@
-import { state, removeDetectedItem, updateDetectedItem, clearCart } from './state.js';
+import { state, removeDetectedItem, updateDetectedItem, clearCart, learnKeyword } from './state.js';
 import { saveData } from './api.js';
 
 export function renderCart() {
@@ -192,8 +192,24 @@ function attachDetectedEvents() {
                 // --- LEARNING TRIGGER ---
                 const item = state.detectedItems[index];
                 if (item && item.originalName && value) {
-                    import('./state.js').then(module => {
-                        module.learnKeyword(item.originalName, value);
+                    learnKeyword(item.originalName, value);
+
+                    // Toast Notification
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true,
+                        didOpen: (toast) => {
+                            toast.addEventListener('mouseenter', Swal.stopTimer)
+                            toast.addEventListener('mouseleave', Swal.resumeTimer)
+                        }
+                    });
+
+                    Toast.fire({
+                        icon: 'success',
+                        title: `จำแล้ว! "${item.originalName}" = ${value}`
                     });
                 }
                 // ------------------------

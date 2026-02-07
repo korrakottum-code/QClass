@@ -1,4 +1,4 @@
-```javascript
+
 import { state } from './state.js';
 
 export function identifyItem(name) {
@@ -18,9 +18,9 @@ export function identifyItem(name) {
     for (const cat in state.services) {
         // Check Category Match
         if (lower.includes(cat.toLowerCase())) {
-             // If matches category name, try to find sub-service in it
-             const subMatch = state.services[cat].find(s => lower.includes(s.toLowerCase()));
-             return { program: cat, sub: subMatch || '' };
+            // If matches category name, try to find sub-service in it
+            const subMatch = state.services[cat].find(s => lower.includes(s.toLowerCase()));
+            return { program: cat, sub: subMatch || '' };
         }
 
         // Check Sub-service Match
@@ -166,7 +166,7 @@ export function extractHeaderData(text) {
         }
         else if (year > 2500) year -= 543;
 
-        foundDate = `${ year } -${ month } -${ day } `;
+        foundDate = `${year}-${month}-${day}`;
     }
 
     return { branch: foundBranchCode, date: foundDate };

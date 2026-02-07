@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจองคิว Class Clinic (V6 Strict)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="pb-32">
+
+    <!-- 1. Header -->
+    <div class="header-bg pt-6 px-4 mb-4">
+        <div class="max-w-xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold"><i class="fa-solid fa-hospital-user mr-2"></i>Class Clinic</h1>
+                <div class="flex items-center gap-2">
+                    <a href="dashboard.html"
+                        class="bg-white/10 px-3 py-1 rounded-full text-xs text-emerald-200 hover:bg-white/20"><i
+                            class="fa-solid fa-chart-line"></i> Dash</a>
+                    <button onclick="toggleSettings()"
+                        class="bg-white/10 px-3 py-1 rounded-full text-xs text-blue-200 hover:bg-white/20"><i
+                            class="fa-solid fa-cog"></i> Setup</button>
+                    <span class="bg-white/10 px-3 py-1 rounded-full text-xs text-blue-200">Admin V6.1</span>
+                </div>
+            </div>
+
+            <!-- Settings Modal (Hidden by default) -->
+            <div id="settingsBox" class="hidden mb-4 bg-slate-800/50 p-3 rounded-xl border border-slate-600">
+                <label class="text-[10px] text-blue-200 uppercase font-bold tracking-wider mb-1 block">Google Script
+                    URL</label>
+                <input type="text" id="apiUrl" onchange="saveApiUrl()"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    class="w-full bg-slate-900 text-white border border-slate-600 rounded-lg px-3 py-2 text-xs outline-none focus:border-sky-400">
+                <p class="text-[10px] text-gray-400 mt-1">Paste your Web App URL here.</p>
+                <button onclick="loadConfig()"
+                    class="mt-2 w-full bg-sky-600 text-white text-xs font-bold py-2 rounded hover:bg-sky-500">Reload
+                    Config</button>
+            </div>
+
+            <div class="bg-white/10 backdrop-blur p-3 rounded-xl border border-white/10 grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[10px] text-blue-200 uppercase font-bold tracking-wider mb-1 block">Date</label>
+                    <input type="date" id="dateInput"
+                        class="w-full bg-slate-800 text-white border border-slate-600 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-sky-400">
+                </div>
+                <div>
+                    <label
+                        class="text-[10px] text-blue-200 uppercase font-bold tracking-wider mb-1 block">Branch</label>
+                    <div id="branchLoading" class="hidden text-xs text-white">Loading...</div>
+                    <select id="branchInput"
+                        class="w-full bg-slate-800 text-white border border-slate-600 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-sky-400">
+                        <option value="">Loading branches...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-xl mx-auto px-4 space-y-6">
+
+        <!-- 2. Manual Input -->
+        <div class="card p-5 border-l-4 border-sky-500">
+            <h2 class="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-hand-pointer text-sky-500"></i> เพิ่มรายการเอง (Manual)
+            </h2>
+            <div class="space-y-3">
+                <select id="programInput"
+                    class="w-full bg-slate-50 border border-slate-200 text-gray-700 rounded-xl px-4 py-3 outline-none focus:border-sky-500 transition-colors">
+                    <option value="">1. เลือกหมวดหมู่...</option>
+                    <option value="Botox">Botox (โบท็อกซ์)</option>
+                    <option value="Filler">Filler (ฟิลเลอร์)</option>
+                    <option value="Hifu">Hifu / ยกกระชับ</option>
+                    <option value="Meso">Meso / หน้าใส</option>
+                    <option value="PRP">PRP / งานเลือด</option>
+                    <option value="Hair">กำจัดขน (Laser)</option>
+                    <option value="Treatment">ทรีทเมนท์</option>
+                    <option value="Surgery">ศัลยกรรม</option>
+                    <option value="Vitamin">วิตามินผิว</option>
+                    <option value="Promo">โปรโมชั่นรวม</option>
+                </select>
+
+                <div class="flex gap-3">
+                    <div class="flex-1">
+                        <select id="subInput" disabled
+                            class="w-full bg-slate-50 border border-slate-200 text-gray-700 rounded-xl px-4 py-3 outline-none focus:border-sky-500 disabled:opacity-50 transition-colors">
+                            <option value="">2. เลือกบริการย่อย...</option>
+                        </select>
+                    </div>
+                    <div class="w-24 relative">
+                        <input type="number" id="queInput" value="1" min="1"
+                            class="w-full bg-slate-50 border border-slate-200 text-center font-bold text-sky-600 text-lg rounded-xl px-2 py-3 outline-none focus:border-sky-500">
+                        <span class="absolute top-1 right-2 text-[10px] text-gray-400">คิว</span>
+                    </div>
+                </div>
+
+                <button onclick="addManualItem()"
+                    class="w-full bg-sky-50 text-sky-600 font-bold py-3 rounded-xl hover:bg-sky-100 flex justify-center items-center gap-2 border border-sky-200 transition-colors">
+                    <i class="fa-solid fa-plus"></i> เพิ่มรายการ
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. Smart Import Box -->
+        <div class="card p-5 border-l-4 border-emerald-500">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="font-bold text-gray-700 flex items-center gap-2">
+                    <i class="fa-solid fa-paste text-emerald-500"></i> นำเข้าจากข้อความ
+                </h2>
+                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">LINE / Note</span>
+            </div>
+
+            <textarea id="smartInput"
+                class="w-full h-32 p-3 bg-slate-50 border-2 border-dashed border-emerald-200 rounded-xl text-sm focus:border-emerald-500 outline-none resize-none mb-3"
+                placeholder="วางข้อความสรุปยอดที่นี่...&#10;เช่น:&#10;แชทวันที่ 04/02/69&#10;Diode = 1&#10;Filler = 2"></textarea>
+
+            <button onclick="processSmartInput()"
+                class="w-full bg-emerald-500 text-white font-bold py-2 rounded-xl hover:bg-emerald-600 shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> ตรวจสอบและนำเข้า
+            </button>
+        </div>
+
+        <!-- 4. Detected Zone (พื้นที่รออนุมัติ) -->
+        <div id="detectedZone" class="hidden fade-in">
+            <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-indigo-800 text-sm"><i class="fa-solid fa-robot mr-1"></i> รายการที่ตรวจพบ
+                    </h3>
+                    <button onclick="clearDetected()"
+                        class="text-xs text-red-400 hover:text-red-600 underline">ล้าง</button>
+                </div>
+                <div id="detectedList" class="space-y-2 mb-3">
+                    <!-- Dynamic List -->
+                </div>
+                <button onclick="confirmDetected()"
+                    class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg text-lg shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">
+                    <i class="fa-solid fa-save mr-2"></i> บันทึกข้อมูลทั้งหมด (Save All)
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Only Mode REMOVED (Merged into Detected Zone) -->
+        <!-- <div id="summaryZone" ...> </div> -->
+
+        <!-- History Summary -->
+        <div id="historyZone" class="hidden mt-6 pt-4 border-t border-gray-200">
+            <h3 class="text-xs font-bold text-gray-400 uppercase mb-2">ประวัติการบันทึกล่าสุด</h3>
+            <div id="historyList" class="space-y-2"></div>
+        </div>
+
+
+    </div>
+
+    </div>
+
+    <!-- Floating Save Button REMOVED as per request -->
+    <!-- 
+    <div class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur border-t border-gray-200 p-4 z-50"> ... </div> 
+    -->
+
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>

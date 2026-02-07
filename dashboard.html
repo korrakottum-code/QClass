@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Clinic - Dashboard</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="bg-slate-50 font-['Sarabun'] min-h-screen text-slate-800">
+
+    <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20">
+
+        <!-- Header -->
+        <div
+            class="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-5 rounded-b-3xl shadow-lg relative z-10">
+            <div class="flex justify-between items-center mb-4">
+                <a href="index.html"
+                    class="bg-white/10 px-3 py-1 rounded-full text-xs text-emerald-100 hover:bg-white/20">
+                    <i class="fa-solid fa-arrow-left"></i> กลับ
+                </a>
+                <h1 class="text-2xl font-bold"><i class="fa-solid fa-chart-line mr-2"></i>Dashboard</h1>
+            </div>
+            <p class="text-emerald-100 text-sm opacity-90">สรุปข้อมูลและสถิติ (Mock Data)</p>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div class="p-5">
+            <div id="dashboardZone">
+                <!-- Content injected by js/dashboard.js -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script type="module">
+        import { initDashboard, switchTab, filterRecords, filterMissing, filterLeaderboard, editBranchGroup } from './js/dashboard.js';
+
+        // Init logic
+        document.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+        });
+
+        // Expose to window for inline onclicks
+        window.switchTab = switchTab;
+        window.filterRecords = filterRecords;
+        window.filterMissing = filterMissing;
+        window.filterLeaderboard = filterLeaderboard;
+        window.editBranchGroup = editBranchGroup;
+    </script>
+</body>
+
+</html>

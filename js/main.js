@@ -119,7 +119,19 @@ function attachGlobalEvents() {
         if (url) {
             localStorage.setItem('API_URL', url);
             API_URL = url;
+        } else {
+            // If empty, reset to default
+            localStorage.removeItem('API_URL');
+            API_URL = DEFAULT_API_URL;
         }
+    };
+
+    window.resetApiUrl = () => {
+        localStorage.removeItem('API_URL');
+        API_URL = DEFAULT_API_URL;
+        document.getElementById('apiUrl').value = '';
+        Swal.fire({ icon: 'success', title: 'Reset Default', text: 'กลับมาใช้ค่าเริ่มต้นแล้วครับ', timer: 1500, showConfirmButton: false });
+        initializeConfig();
     };
 
     window.loadConfig = () => {

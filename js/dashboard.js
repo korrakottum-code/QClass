@@ -270,6 +270,14 @@ export async function filterMissing() {
 
     // 1. Calculate Date Range
     const [year, month] = monthStr.split('-').map(Number);
+
+    // Helper to format YYYY-MM-DD in local timezone (avoids toISOString UTC shift)
+    const fmtLocal = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
     const startDate = `${monthStr}-01`;
 
     // Calculate End Date (Up to Yesterday)
@@ -294,7 +302,7 @@ export async function filterMissing() {
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = fmtLocal(yesterday);
 
     // If selected month includes "Yesterday" or is current month
     if (currentIsSameMonth(today, year, month)) {
@@ -314,7 +322,7 @@ export async function filterMissing() {
         // Past month -> Check entire month
     }
 
-    const endDateStr = checkUpToDate.toISOString().split('T')[0]; // For fetching, fetch full range we care about
+    const endDateStr = fmtLocal(checkUpToDate); // For fetching, fetch full range we care about
     // Actually for Fetching, we should fetch UP TO what we check.
     // BUT what if they submitted for "Today" (future relative to check)? We just ignore it for "missing" logic.
 
@@ -339,13 +347,24 @@ export async function filterMissing() {
         }
 
         // 3. Process Missing
+
+
         const submittedMap = {}; // branchCode -> Set(dates)
         records.forEach(r => {
+            // Ensure date is normalized if needed? 
+            // API usually returns YYYY-MM-DD. 
+            // If it returns ISO with time, splitting T is safe.
+            let d = r.date;
+            if (d.includes('T')) d = d.split('T')[0];
+
             if (!submittedMap[r.branch]) submittedMap[r.branch] = new Set();
-            submittedMap[r.branch].add(r.date);
+            submittedMap[r.branch].add(d);
         });
 
+
         const missingData = []; // { name, code, missingDates: [] }
+
+        // Use fmtLocal helper defined above
 
         // Iterate all branches
         for (const [name, code] of Object.entries(state.branchMap)) {
@@ -353,8 +372,10 @@ export async function filterMissing() {
 
             // Loop from 1 to checkUpToDate
             let loopDate = new Date(year, month - 1, 1);
+
+            // Prevent infinite loop if something is wrong with dates, strict compare
             while (loopDate <= checkUpToDate) {
-                const dStr = loopDate.toISOString().split('T')[0];
+                const dStr = fmtLocal(loopDate);
                 const submitted = submittedMap[code] && submittedMap[code].has(dStr);
 
                 if (!submitted) {

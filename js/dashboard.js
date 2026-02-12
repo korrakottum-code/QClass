@@ -232,106 +232,192 @@ export function filterRecords() {
 
 
 function renderMissing() {
-    const today = new Date().toISOString().split('T')[0]; // Default to today, or should we default to yesterday? User said "submitted for yesterday".
-    // Let's use Yesterday by default for logic "Yesterday's submission"
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateVal = yesterday.toISOString().split('T')[0];
+    // Default to current month
+    const today = new Date();
+    const currentMonth = today.toISOString().slice(0, 7); // YYYY-MM
 
     const content = document.getElementById('dashboardContent');
     content.innerHTML = `
-        <div class="mb-4 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700">สาขาที่ยังไม่ส่งยอด</h3>
-            <input type="date" id="missingDateFilter" value="${dateVal}" onchange="filterMissing()" class="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm">
+        <div class="mb-4 flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+            <h3 class="font-bold text-gray-700"><i class="fa-regular fa-calendar-xmark mr-2 text-red-500"></i>ติดตามการส่งยอด (รายเดือน)</h3>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">เลือกเดือน:</span>
+                <input type="month" id="missingDateFilter" value="${currentMonth}" onchange="filterMissing()" class="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-red-500">
+            </div>
         </div>
-        <div id="missingList" class="grid grid-cols-2 gap-2"></div>
+        <div id="missingList" class="flex flex-col gap-3"></div>
     `;
     filterMissing();
 }
 
 export async function filterMissing() {
-    const date = document.getElementById('missingDateFilter').value;
+    const monthStr = document.getElementById('missingDateFilter').value; // YYYY-MM
     const list = document.getElementById('missingList');
     list.innerHTML = '';
 
+    if (!monthStr) return;
+
     // 0. Check Branches Loaded
-    const allBranches = state.branchMap;
-    if (Object.keys(allBranches).length === 0) {
-        list.innerHTML = `<div class="col-span-2 text-center py-4 text-gray-400"><i class="fa-solid fa-sync fa-spin mr-2"></i>กำลังโหลดข้อมูลสาขา...</div>`;
-        // Try to reload config if missing?
+    if (Object.keys(state.branchMap).length === 0) {
+        list.innerHTML = `<div class="text-center py-4 text-gray-400"><i class="fa-solid fa-sync fa-spin mr-2"></i>กำลังโหลดข้อมูลสาขา...</div>`;
         const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
         if (apiUrl) await loadConfig(apiUrl);
         if (Object.keys(state.branchMap).length === 0) {
-            list.innerHTML = `<div class="col-span-2 text-center py-4 text-red-400">ไม่พบข้อมูลสาขา (Config Error)</div>`;
+            list.innerHTML = `<div class="text-center py-4 text-red-400">ไม่พบข้อมูลสาขา (Config Error)</div>`;
             return;
         }
     }
 
-    // 1. Dynamic Fetch: Check if we have data for this date?
-    // Optimization: Check if date is "old" (older than 30 days) and not in current cache
-    // Or just simple: If we find 0 records for this date, TRY fetching specific date range from server once.
-    // To avoid loop, we need a flag or separate cache check.
+    // 1. Calculate Date Range
+    const [year, month] = monthStr.split('-').map(Number);
+    const startDate = `${monthStr}-01`;
 
-    // For now, let's trust the user needs this date.
-    // If mockSubmissions doesn't include this date, and it's not "today" (which might legitimately be empty),
-    // we should fetch.
+    // Calculate End Date (Up to Yesterday)
+    const today = new Date();
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
 
-    const hasDataForDate = mockSubmissions.some(s => s.date === date);
-    if (!hasDataForDate) {
-        // Show loading then fetch
-        list.innerHTML = `<div class="col-span-2 text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลวันที่ ${date}...</div>`;
+    let endDateObj = new Date(year, month - 1, lastDayOfMonth);
 
-        try {
-            const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
-            if (apiUrl) {
-                // Fetch JUST this date
-                const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${date}&endDate=${date}`);
-                const resData = await response.json();
-
-                if (resData.status === 'success' && Array.isArray(resData.records)) {
-                    // Merge? Or just use for this view?
-                    // Let's merge into mockSubmissions so we don't fetch again
-                    // But filter out duplicates just in case
-                    const newRecords = resData.records.filter(n => !mockSubmissions.some(o => o.id === n.id));
-                    mockSubmissions = [...mockSubmissions, ...newRecords];
-                }
-            }
-        } catch (e) {
-            console.error("Fetch specific date error:", e);
-            list.innerHTML = `<div class="col-span-2 text-center py-4 text-red-400">โหลดข้อมูลไม่สำเร็จ</div>`;
-            return;
-        }
-    }
-
-    // 2. Re-calculate with (potentially) new data
-    const submittedBranches = new Set(mockSubmissions.filter(s => s.date === date).map(s => s.branch));
-    const missing = [];
-
-    for (const [name, code] of Object.entries(state.branchMap)) {
-        if (!submittedBranches.has(code)) {
-            missing.push(name);
-        }
-    }
-
-    if (missing.length === 0) {
-        // Double check: Is it because it's a future date?
-        const d = new Date(date);
-        const now = new Date();
-        if (d > now) {
-            list.innerHTML = `<div class="col-span-2 text-center py-4 text-gray-400">ยังไม่ถึงวันดังกล่าว</div>`;
-            return;
-        }
-
-        list.innerHTML = `<div class="col-span-2 text-center py-4 text-emerald-500 font-bold">🎉 ครบทุกสาขาแล้ว!</div>`;
+    // If selected month is future -> Empty
+    if (new Date(year, month - 1, 1) > today) {
+        list.innerHTML = `<div class="text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+            <i class="fa-regular fa-calendar-check text-4xl mb-2 opacity-50"></i>
+            <p>ยังไม่ถึงเดือน${monthStr}</p>
+        </div>`;
         return;
     }
 
-    missing.forEach(name => {
-        const div = document.createElement('div');
-        div.className = 'p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 font-bold text-sm flex items-center gap-2';
-        div.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${name}`;
-        list.appendChild(div);
-    });
+    // Capture "Effective End Date" for checking missing
+    // If current month, check up to Yesterday.
+    // If past month, check up to last day.
+    let checkUpToDate = endDateObj;
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // If selected month includes "Yesterday" or is current month
+    if (currentIsSameMonth(today, year, month)) {
+        // If Today is 1st, then yesterday is previous month. 
+        // logic: Math.min(LastDay, Yesterday)
+        if (today.getDate() === 1) {
+            // It's 1st of month. No previous days in THIS month to check.
+            list.innerHTML = `<div class="text-center py-10 text-emerald-500 font-bold bg-white rounded-xl border border-emerald-100">
+                <p>ต้นเดือนใหม่ ยังไม่มีข้อมูลขาดส่งครับ</p>
+             </div>`;
+            return;
+        }
+        checkUpToDate = yesterday;
+    } else if (new Date(year, month - 1, 1) > today) {
+        // Future handled above
+    } else {
+        // Past month -> Check entire month
+    }
+
+    const endDateStr = checkUpToDate.toISOString().split('T')[0]; // For fetching, fetch full range we care about
+    // Actually for Fetching, we should fetch UP TO what we check.
+    // BUT what if they submitted for "Today" (future relative to check)? We just ignore it for "missing" logic.
+
+    // Show Loading
+    list.innerHTML = `<div class="text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบข้อมูลตลอดเดือน...</div>`;
+
+    // 2. Fetch Data (Deep Fetch for Range)
+    // We always fetch from server for this view to be accurate
+    try {
+        const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
+        let records = [];
+        if (apiUrl) {
+            const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${startDate}&endDate=${endDateStr}`);
+            const resData = await response.json();
+            if (resData.status === 'success' && Array.isArray(resData.records)) {
+                records = resData.records;
+                // Update Local Cache (Optional but good)
+                // Filter duplicates
+                const newRecords = records.filter(n => !mockSubmissions.some(o => o.id === n.id));
+                mockSubmissions = [...mockSubmissions, ...newRecords];
+            }
+        }
+
+        // 3. Process Missing
+        const submittedMap = {}; // branchCode -> Set(dates)
+        records.forEach(r => {
+            if (!submittedMap[r.branch]) submittedMap[r.branch] = new Set();
+            submittedMap[r.branch].add(r.date);
+        });
+
+        const missingData = []; // { name, code, missingDates: [] }
+
+        // Iterate all branches
+        for (const [name, code] of Object.entries(state.branchMap)) {
+            const missingDates = [];
+
+            // Loop from 1 to checkUpToDate
+            let loopDate = new Date(year, month - 1, 1);
+            while (loopDate <= checkUpToDate) {
+                const dStr = loopDate.toISOString().split('T')[0];
+                const submitted = submittedMap[code] && submittedMap[code].has(dStr);
+
+                if (!submitted) {
+                    missingDates.push(loopDate.getDate()); // Store day number
+                }
+
+                loopDate.setDate(loopDate.getDate() + 1);
+            }
+
+            if (missingDates.length > 0) {
+                missingData.push({ name, code, missingDates });
+            }
+        }
+
+        // 4. Render
+        list.innerHTML = '';
+        if (missingData.length === 0) {
+            list.innerHTML = `<div class="text-center py-10 text-emerald-500 font-bold bg-white rounded-xl border border-emerald-100 shadow-sm">
+                <i class="fa-solid fa-check-circle text-4xl mb-2"></i>
+                <p>ยอดเยี่ยม! ส่งยอดครบทุกสาขา (ถึงเมื่อวาน)</p>
+            </div>`;
+            return;
+        }
+
+        // Sort by # missing (desc)
+        missingData.sort((a, b) => b.missingDates.length - a.missingDates.length);
+
+        missingData.forEach(item => {
+            // Generate Badges
+            const badges = item.missingDates.map(d =>
+                `<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold text-xs border border-red-200 shadow-sm">${d}</span>`
+            ).join('');
+
+            const card = document.createElement('div');
+            card.className = 'bg-white p-4 rounded-xl border border-red-100 shadow-sm flex flex-col md:flex-row md:items-center gap-4 hover:shadow-md transition-shadow';
+            card.innerHTML = `
+                <div class="md:w-1/4 flex items-center gap-3 border-b md:border-b-0 md:border-r border-gray-100 pb-2 md:pb-0 pr-0 md:pr-4">
+                     <div class="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                        <i class="fa-solid fa-store"></i>
+                     </div>
+                     <div>
+                        <div class="font-bold text-gray-800">${item.name}</div>
+                        <div class="text-xs text-red-500 font-semibold">ขาด ${item.missingDates.length} วัน</div>
+                     </div>
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs text-gray-400 mb-2">วันที่ยังไม่ส่ง:</div>
+                    <div class="flex flex-wrap gap-2">
+                        ${badges}
+                    </div>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error("Fetch Error:", e);
+        list.innerHTML = `<div class="text-center py-4 text-red-400">เกิดข้อผิดพลาดในการดึงข้อมูล (${e.message})</div>`;
+    }
+}
+
+function currentIsSameMonth(d1, y, m) {
+    return d1.getFullYear() === y && (d1.getMonth() + 1) === m;
 }
 
 function renderLeaderboard() {

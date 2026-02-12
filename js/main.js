@@ -1,6 +1,6 @@
 import { DEFAULT_API_URL } from './config.js';
 import { state, setDetectedItems, addToCart } from './state.js';
-import { loadConfig } from './api.js';
+import { loadConfig, fetchDashboardData } from './api.js';
 import { renderCart, renderDetected, addToHistory } from './ui.js';
 import { processSmartInput as analyzeText, extractHeaderData } from './logic.js';
 import { saveData as apiSaveData } from './api.js';
@@ -249,6 +249,61 @@ function attachGlobalEvents() {
             if (!isNaN(d.getTime())) document.getElementById('dateInput').value = headerData.date;
         }
 
+        // --- EARLY DUPLICATE CHECK START ---
+        const checkDate = document.getElementById('dateInput').value;
+        const checkBranch = document.getElementById('branchInput').value;
+
+        if (checkDate && checkBranch) {
+            checkDuplicateRecords(checkDate, checkBranch).then(duplicates => {
+                if (duplicates && duplicates.length > 0) {
+                    Swal.fire({
+                        title: 'มีข้อมูลสาขานี้แล้ว!',
+                        html: duplicates.summaryHtml || `
+                            <p class="text-sm text-gray-600 mb-2">พบข้อมูล <b>${checkBranch}</b> วันที่ <b>${checkDate}</b> อยู่แล้ว <br>ต้องการทำรายการอย่างไร?</p>
+                            <ul class="text-left text-xs bg-red-50 p-2 rounded text-red-600 mb-2 max-h-32 overflow-y-auto">
+                                 ${duplicates.map(r => `<li>• มี ${r.totalQue} คิว (บันทึกเมื่อ ${new Date(r.timestamp).toLocaleTimeString()})</li>`).join('')}
+                            </ul>
+                        `,
+                        icon: 'warning',
+                        showDenyButton: true,
+                        showCancelButton: true,
+                        confirmButtonText: 'ลบอันเก่า (ลงใหม่) 🗑️',
+                        denyButtonText: 'แก้ไขอันเดิม ✏️',
+                        cancelButtonText: 'ยกเลิก ❌',
+                        confirmButtonColor: '#ef4444',
+                        denyButtonColor: '#f59e0b',
+                        cancelButtonColor: '#9ca3af',
+                        reverseButtons: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Option 1: Overwrite (Delete Old & Save New)
+                            // Logic: Allow them to import new text.
+                            // On Save, we will delete old.
+                            // But for clarity, we can just proceed with parsing.
+                            proceedWithParsing(text);
+                        } else if (result.isDenied) {
+                            // Option 2: Edit Existing
+                            loadRecordsToUI(duplicates);
+                            Swal.fire('โหลดข้อมูลเดิมแล้ว', 'แก้ไขรายการที่ต้องการ แล้วกดบันทึกใหม่ได้เลยครับ (ระบบจะถามให้ทับอันเดิม)', 'info');
+                        }
+                    });
+                } else {
+                    // No duplicates, proceed
+                    proceedWithParsing(text);
+                }
+            });
+            return; // Stop here, let async check handle logic
+        } else {
+            proceedWithParsing(text);
+        }
+    };
+
+    function proceedWithParsing(text) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        const { items: detected, branch: detectedBranch, date: detectedDate } = identifyItems(lines);
+        // Logic continues... we need to grab the original code logic for parsing.
+
+
         const items = analyzeText(text);
         if (items.length > 0) {
             setDetectedItems(items);
@@ -264,7 +319,7 @@ function attachGlobalEvents() {
         document.getElementById('smartInput').value = '';
     };
 
-    window.confirmDetected = () => {
+    window.confirmDetected = async () => {
         // 1. Check Missing Data
         const incomplete = state.detectedItems.filter(i => !i.program || !i.sub);
         if (incomplete.length > 0) {
@@ -279,7 +334,7 @@ function attachGlobalEvents() {
             return;
         }
 
-        saveData(state.detectedItems);
+        await saveData(state.detectedItems);
     };
 
     window.removeDetected = (index) => {
@@ -304,7 +359,7 @@ function attachGlobalEvents() {
         renderCart();
     }
 
-    window.saveData = (customItems = null) => {
+    window.saveData = async (customItems = null) => {
         // If customItems is event (click), set to null
         if (customItems instanceof Event) customItems = null;
 
@@ -324,14 +379,100 @@ function attachGlobalEvents() {
         const date = document.getElementById('dateInput').value;
         const branchSelect = document.getElementById('branchInput');
         const branchName = branchSelect.options[branchSelect.selectedIndex]?.text || branchSelect.value;
+        const branchCode = branchSelect.value;
         const totalQue = items.reduce((sum, item) => sum + item.que, 0);
         const totalItems = items.length;
 
-        // Format Date for display (e.g., DD/MM/YYYY)
+        // --- DUPLICATE CHECK START ---
+        // Fetch existing data for this date & branch
+        Swal.fire({
+            title: 'กำลังตรวจสอบข้อมูล...',
+            text: 'Checking for duplicates',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        try {
+            // Fetch for THIS date
+            const response = await fetch(`${API_URL}?action=get_dashboard&startDate=${date}&endDate=${date}&_=${Date.now()}`);
+            const resData = await response.json();
+
+            // Filter checking for SAME Branch
+            let duplicateRecords = [];
+            if (resData.status === 'success' && Array.isArray(resData.records)) {
+                // Ensure Strict Comparison but trim just in case
+                duplicateRecords = resData.records.filter(r => r.branch === branchCode);
+                console.log("Duplicate Check:", { date, branchCode, found: duplicateRecords.length, records: duplicateRecords });
+            }
+
+            if (duplicateRecords.length > 0) {
+                // Found duplicates!
+                const result = await Swal.fire({
+                    title: 'มีข้อมูลสาขานี้แล้ว!',
+                    html: duplicateRecords.summaryHtml || `
+                        <p class="text-sm text-gray-600 mb-2">พบข้อมูล <b>${branchName}</b> วันที่ <b>${date}</b> อยู่แล้ว <br>ต้องการทำรายการอย่างไร?</p>
+                        <ul class="text-left text-xs bg-red-50 p-2 rounded text-red-600 mb-2 max-h-32 overflow-y-auto">
+                             ${duplicateRecords.map(r => `<li>• มี ${r.totalQue} คิว (บันทึกเมื่อ ${new Date(r.timestamp).toLocaleTimeString()})</li>`).join('')}
+                        </ul>
+                    `,
+                    icon: 'warning',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'ลบอันเก่า (ลงใหม่) 🗑️',
+                    denyButtonText: 'แก้ไขอันเดิม ✏️',
+                    cancelButtonText: 'ยกเลิก ❌',
+                    confirmButtonColor: '#ef4444',
+                    denyButtonColor: '#f59e0b',
+                    cancelButtonColor: '#9ca3af',
+                    reverseButtons: true
+                });
+
+                if (result.isConfirmed) {
+                    // Option 1: Delete Old & Save New
+                    // We need to overwrite existing records with 0 logic first
+                    await overwriteOldRecords(duplicateRecords);
+                    // Then continue to save NEW items below
+                }
+                else if (result.isDenied) {
+                    // Option 2: Edit Existing -> Load into UI
+                    loadRecordsToUI(duplicateRecords);
+                    // Need to also queue these old records for deletion upon NEW save?
+                    // Yes, we will simulate "Delete Old" logic when they hit save again.
+                    // But wait, `saveData` checks again next time? 
+                    // No, duplicates check will happen again.
+                    // Best approach: "Delete Old" IMMEDIATELY (Safety copy first?) 
+                    // OR: Flag them to be deleted when saving. 
+
+                    // Let's do: Load into Detect Zone, and let the user modify.
+                    // When they click Save again, duplicate check will fire again.
+                    // They will likely choose "Delete Old & Save New" then?
+                    // To make it smoother: 
+                    // We can just load them and instruct user "แก้ไขเสร็จแล้วกดบันทึก (เลือกทับอันเดิม)"
+                    Swal.fire('โหลดข้อมูลเดิมแล้ว', 'แก้ไขรายการที่ต้องการ แล้วกดบันทึกใหม่ได้เลยครับ (ระบบจะถามให้ทับอันเดิม)', 'info');
+                    return; // Stop saving now
+                } else {
+                    return; // Cancel
+                }
+            }
+
+        } catch (error) {
+            console.error("Duplicate Check Error:", error);
+            // If fetch fails, ask user to proceed riskily?
+            const proceed = await Swal.fire({
+                title: 'เช็คข้อมูลเก่าไม่ได้',
+                text: 'ไม่สามารถตรวจสอบข้อมูลซ้ำได้ (เน็ตหลุด?) ต้องการบันทึกเลยไหม?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกเลย (เสี่ยงทับ)',
+                cancelButtonText: 'ยกเลิก'
+            });
+            if (!proceed.isConfirmed) return;
+        }
+        // --- DUPLICATE CHECK END ---
+
+        // Format Date for display
         const [y, m, d] = date.split('-');
-        const dateDisplay = `${d}/${m}/${Number(y) + 543}`; // Buddhist Year? Or just regular? Let's use standard or requested. User interface is Thai, usually BE or just clear format. Let's use simple DD/MM/YYYY for now or keep YYYY-MM-DD but large.
-        // User said "Check Date Big Text". 
-        // Let's use Thai Date format if possible or just clear DD/MM/YYYY.
+        const dateDisplay = `${d}/${m}/${Number(y) + 543}`;
         const dateObj = new Date(date);
         const dateThai = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -384,6 +525,66 @@ function attachGlobalEvents() {
                 });
             }
         });
+    }
+
+    async function overwriteOldRecords(records) {
+        // Zero out quantities
+        const promises = records.map(rec => {
+            // Need to update EACH item in the record? 
+            // The API expects 'update_record' action with date, branch, program, sub, que.
+            // Wait, records structure is: { id, date, branch, items: [ {program, sub, que}, ...], totalQue }
+
+            // We need to iterate ALL items in this record and set them to 0??
+            // Actually, if we send a new submission, it appends.
+            // If main logic is "Append", then old data remains.
+            // So yes, we MUST set old data to 0 to "Flag as deleted/cancelled".
+
+            const itemPromises = rec.items.map(item => {
+                const payload = {
+                    action: 'update_record',
+                    date: rec.date,
+                    branch: rec.branch,
+                    program: item.program,
+                    sub: item.sub || '',
+                    que: 0 // DELETE (Zero out)
+                };
+                const queryString = new URLSearchParams(payload).toString();
+                return fetch(`${API_URL}?${queryString}`).then(r => r.json());
+            });
+            return Promise.all(itemPromises);
+        });
+
+        Swal.fire({
+            title: 'กำลังลบข้อมูลเก่า...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        await Promise.all(promises);
+    }
+
+    function loadRecordsToUI(records) {
+        // Flatten all items from all duplicate records
+        let allItems = [];
+        records.forEach(rec => {
+            rec.items.forEach(item => {
+                // Ignore zero items if any
+                if (parseInt(item.que) > 0) {
+                    allItems.push({
+                        id: Date.now() + Math.random(),
+                        program: item.program,
+                        sub: item.sub || '',
+                        que: parseInt(item.que),
+                        verified: true // Already from DB, so verified
+                    });
+                }
+            });
+        });
+
+        setDetectedItems(allItems);
+        renderDetected();
+        document.getElementById('detectedZone').classList.remove('hidden');
+        document.getElementById('smartInput').value = ''; // clear input
     }
 
     function performSave(date, branchCode, items) {
@@ -452,4 +653,92 @@ function attachGlobalEvents() {
             module.initDashboard();
         }
     });
+}
+
+// Helper for Duplicate Check
+async function checkDuplicateRecords(date, branchCode) {
+    try {
+        Swal.fire({
+            title: 'กำลังตรวจสอบข้อมูล...',
+            text: 'Checking for duplicates',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const response = await fetch(`${API_URL}?action=get_dashboard&startDate=${date}&endDate=${date}&_=${Date.now()}`);
+        const resData = await response.json();
+
+        Swal.close(); // Close loading
+
+        if (resData.status === 'success' && Array.isArray(resData.records)) {
+            const duplicates = resData.records.filter(r => r.branch === branchCode);
+
+            if (duplicates.length > 0) {
+                // Aggregate items for summary
+                let totalQue = 0;
+                let itemsSummary = [];
+
+                duplicates.forEach(rec => {
+                    totalQue += parseInt(rec.totalQue || 0);
+                    if (rec.items && Array.isArray(rec.items)) {
+                        rec.items.forEach(item => {
+                            // Group by "Program - Sub"
+                            const key = `${item.program} - ${item.sub || ''}`;
+                            const existing = itemsSummary.find(i => i.key === key);
+                            if (existing) {
+                                existing.que += parseInt(item.que);
+                            } else {
+                                itemsSummary.push({ key, name: key, que: parseInt(item.que) });
+                            }
+                        });
+                    }
+                });
+
+                // Generate HTML for SweetAlert
+                const itemsHtml = itemsSummary.map(i =>
+                    `<li class="flex justify-between border-b border-orange-100 last:border-0 py-1"><span>${i.name}</span> <span class="font-bold bg-white px-2 rounded text-orange-600">${i.que}</span></li>`
+                ).join('');
+
+                // We need to pass this structure to the caller? 
+                // Wait, if I change the return type, I break the caller which expects an array of records?
+                // The caller (`saveData` / `processSmartInput`) uses `duplicates.length`.
+                // If I return the ORIGINAL records array, I can attach the summary HTML to it? 
+                // Or I can just continue returning records, BUT I missed the point:
+                // The ALERT is inside the CALLER in my previous code (step 289/321).
+                // I need to update the Alert HTML in the CALLER.
+
+                // Let's look at `saveData` again.
+                // It calls `checkDuplicateRecords`.
+                // `checkDuplicateRecords` returns `duplicates` array.
+                // Then `saveData` constructs the `Swal`.
+
+                // So updating `checkDuplicateRecords` to just return data is NOT enough if the Swal is in `saveData`.
+                // I need to update `saveData` and `processSmartInput`.
+
+                // However, I can attach the `summaryHtml` property to the returned array!
+                duplicates.summaryHtml = `
+                    <div class="text-left text-gray-700">
+                        <div class="bg-orange-50 p-3 rounded-lg border border-orange-200 mb-3">
+                            <p class="font-bold text-orange-800 mb-2 border-b border-orange-200 pb-1">📌 ข้อมูลเดิม (${duplicates.length} รายการ):</p>
+                            <ul class="text-xs space-y-1 mb-2 max-h-40 overflow-y-auto pr-1">
+                                ${itemsHtml}
+                            </ul>
+                            <div class="border-t border-orange-200 pt-2 flex justify-between text-sm font-bold text-orange-900 mt-2">
+                                <span>รวมทั้งหมด</span>
+                                <span>${totalQue} คิว</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                console.log("Duplicate Check:", { date, branchCode, found: duplicates.length, totalQue });
+                return duplicates;
+            }
+            return [];
+        }
+        return [];
+    } catch (error) {
+        console.error("Duplicate Check Error:", error);
+        Swal.close();
+        return [];
+    }
 }

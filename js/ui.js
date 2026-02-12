@@ -2,10 +2,7 @@ import { state, removeDetectedItem, updateDetectedItem, clearCart, learnKeyword,
 import { saveData } from './api.js';
 
 export function renderCart() {
-    // Deprecated: Summary is now part of renderDetected.
-    // This function is kept empty to prevent errors if called, 
-    // but should be removed from callers eventually.
-    console.log("renderCart is deprecated.");
+    // Deprecated: kept empty to prevent errors if called.
 }
 
 export function addToHistory(payload) {

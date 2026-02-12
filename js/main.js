@@ -299,11 +299,6 @@ function attachGlobalEvents() {
     };
 
     function proceedWithParsing(text) {
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-        const { items: detected, branch: detectedBranch, date: detectedDate } = identifyItems(lines);
-        // Logic continues... we need to grab the original code logic for parsing.
-
-
         const items = analyzeText(text);
         if (items.length > 0) {
             setDetectedItems(items);
@@ -402,7 +397,6 @@ function attachGlobalEvents() {
             if (resData.status === 'success' && Array.isArray(resData.records)) {
                 // Ensure Strict Comparison but trim just in case
                 duplicateRecords = resData.records.filter(r => r.branch === branchCode);
-                console.log("Duplicate Check:", { date, branchCode, found: duplicateRecords.length, records: duplicateRecords });
             }
 
             if (duplicateRecords.length > 0) {
@@ -605,9 +599,6 @@ function attachGlobalEvents() {
             .then(() => {
                 addToHistory(payload);
                 state.cart = [];
-                addToHistory(payload);
-                state.cart = [];
-                // renderCart(); // Deprecated
                 document.getElementById('smartInput').value = '';
 
                 // Clear detected logic
@@ -730,7 +721,6 @@ async function checkDuplicateRecords(date, branchCode) {
                         </div>
                     </div>
                 `;
-                console.log("Duplicate Check:", { date, branchCode, found: duplicates.length, totalQue });
                 return duplicates;
             }
             return [];

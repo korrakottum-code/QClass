@@ -16,7 +16,7 @@ export function learnKeyword(keyword, category, sub = '') {
     state.keywordMappings[cleanKey] = { category, sub };
 
     localStorage.setItem('keywordMappings', JSON.stringify(state.keywordMappings));
-    console.log(`Learned: "${cleanKey}" -> ${category} / ${sub}`);
+
 }
 
 export function learnBranch(keyword, branchCode) {
@@ -24,7 +24,7 @@ export function learnBranch(keyword, branchCode) {
     const cleanKey = keyword.trim().toLowerCase();
     state.branchMappings[cleanKey] = branchCode;
     localStorage.setItem('branchMappings', JSON.stringify(state.branchMappings));
-    console.log(`Learned Branch: "${cleanKey}" -> ${branchCode}`);
+
 }
 
 export function setServices(newServices) {

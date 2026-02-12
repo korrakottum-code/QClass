@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Debug files
+api_response.json
+debug_output.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

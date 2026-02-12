@@ -1,7 +1,14 @@
 import { state } from './state.js';
-// import { generateMockData } from './mock.js'; // REMOVED
 import { fetchDashboardData, loadConfig } from './api.js';
-import { DEFAULT_API_URL } from './config.js'; // Import Default URL
+import { DEFAULT_API_URL } from './config.js';
+
+// Helper: local date string (avoids toISOString UTC shift in UTC+7)
+function toLocalDateStr(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
 
 let mockSubmissions = [];
 
@@ -21,7 +28,7 @@ export async function initDashboard() {
         }
 
         const response = await fetchDashboardData();
-        console.log("Dashboard Data:", response); // Debug
+
 
         if (response && response.status === 'success' && Array.isArray(response.records)) {
             mockSubmissions = response.records;
@@ -90,7 +97,7 @@ export function switchTab(tabName) {
 }
 
 function renderRecords() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateStr(new Date());
     const content = document.getElementById('dashboardContent');
 
     content.innerHTML = `
@@ -234,7 +241,7 @@ export function filterRecords() {
 function renderMissing() {
     // Default to current month
     const today = new Date();
-    const currentMonth = today.toISOString().slice(0, 7); // YYYY-MM
+    const currentMonth = toLocalDateStr(today).slice(0, 7); // YYYY-MM
 
     const content = document.getElementById('dashboardContent');
     content.innerHTML = `
@@ -449,8 +456,8 @@ function renderLeaderboard() {
     const pastDate = new Date();
     pastDate.setDate(today.getDate() - 6); // Include today + 6 days back = 7 days
 
-    const dateStr = today.toISOString().split('T')[0];
-    const pastStr = pastDate.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(today);
+    const pastStr = toLocalDateStr(pastDate);
 
     content.innerHTML = `
         <div class="mb-4 flex justify-between items-center">

@@ -228,9 +228,14 @@ export function filterRecords() {
                     </div>
                 </div>
                 
-                <button onclick="editBranchGroup('${group.code}', '${date}')" class="mt-2 w-full py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 text-xs font-bold rounded-lg border border-sky-100 transition-colors">
-                    <i class="fa-solid fa-pen-to-square mr-1"></i>ดู/แก้ไข
-                </button>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="editBranchGroup('${group.code}', '${date}')" class="flex-1 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 text-xs font-bold rounded-lg border border-sky-100 transition-colors">
+                        <i class="fa-solid fa-pen-to-square mr-1"></i>ดู/แก้ไข
+                    </button>
+                    <button onclick="deleteBranchGroup('${group.code}', '${date}', '${group.name}')" class="py-1.5 px-3 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-lg border border-red-100 transition-colors">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
             </div>
         `;
         container.appendChild(card);
@@ -684,19 +689,102 @@ window.adjustQue = (recId, itemIdx, delta) => {
     const record = mockSubmissions.find(s => s.id === recId);
     if (record && record.items[itemIdx]) {
         let newVal = parseInt(record.items[itemIdx].que) + delta;
-        if (newVal < 0) newVal = 0; // Prevent negative
+        if (newVal < 0) newVal = 0;
 
-        // Update Object (Mutable)
         record.items[itemIdx].que = newVal;
-        record.items[itemIdx]._dirty = true; // Mark as dirty
+        record.items[itemIdx]._dirty = true;
 
-        // Update Total for this record (Approximate, might be used by display)
         record.totalQue += delta;
         if (record.totalQue < 0) record.totalQue = 0;
 
-        // Update Input UI
         const input = document.getElementById(`input-${recId}-${itemIdx}`);
         if (input) input.value = newVal;
     }
 };
+
+// Delete all records for a branch on a specific date
+export async function deleteBranchGroup(branchCode, date, branchName) {
+    const result = await Swal.fire({
+        icon: 'warning',
+        title: 'ลบข้อมูล?',
+        html: `<div class="text-left">
+            <p class="mb-2">คุณต้องการลบข้อมูลทั้งหมดของ:</p>
+            <div class="bg-red-50 p-3 rounded-lg border border-red-200">
+                <div class="font-bold text-red-700"><i class="fa-solid fa-building mr-1"></i>${branchName}</div>
+                <div class="text-sm text-red-500"><i class="fa-regular fa-calendar mr-1"></i>${date}</div>
+            </div>
+            <p class="mt-2 text-xs text-gray-500">ข้อมูลจะถูกลบออกจาก Google Sheet ด้วย</p>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-trash mr-1"></i>ลบเลย',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#9ca3af',
+    });
+
+    if (!result.isConfirmed) return;
+
+    const groupRecords = mockSubmissions.filter(s => s.branch === branchCode && s.date === date);
+
+    if (groupRecords.length === 0) {
+        Swal.fire({ icon: 'info', title: 'ไม่พบข้อมูล', timer: 1500, showConfirmButton: false });
+        return;
+    }
+
+    Swal.fire({
+        title: 'กำลังลบข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
+        const allPromises = [];
+
+        groupRecords.forEach(rec => {
+            rec.items.forEach(item => {
+                const payload = {
+                    action: 'update_record',
+                    date: rec.date,
+                    branch: rec.branch,
+                    program: item.program,
+                    sub: item.sub || '',
+                    que: 0  // Zero out = delete
+                };
+                const queryString = new URLSearchParams(payload).toString();
+                allPromises.push(
+                    fetch(`${apiUrl}?${queryString}`)
+                        .then(r => r.text())
+                        .then(text => {
+                            try { return JSON.parse(text); }
+                            catch (e) { throw new Error('Server returned invalid response'); }
+                        })
+                );
+            });
+        });
+
+        await Promise.all(allPromises);
+
+        // Remove from local cache
+        mockSubmissions = mockSubmissions.filter(s => !(s.branch === branchCode && s.date === date));
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ลบเรียบร้อย!',
+            text: `${branchName} (${date})`,
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+
+        filterRecords(); // Re-render
+    } catch (err) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ลบไม่สำเร็จ',
+            text: err.message,
+        });
+    }
+}
 

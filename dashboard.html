@@ -51,7 +51,7 @@
 
     <!-- Scripts -->
     <script type="module">
-        import { initDashboard, switchTab, filterRecords, filterMissing, filterLeaderboard, editBranchGroup, deleteBranchGroup } from './js/dashboard.js?v=20260212_DELETE';
+        import { initDashboard, switchTab, filterRecords, filterMissing, filterLeaderboard, editBranchGroup, deleteBranchGroup, exportMonthlyCSV } from './js/dashboard.js?v=20260216_EXPORT';
 
         // Init logic
         document.addEventListener('DOMContentLoaded', () => {
@@ -65,6 +65,7 @@
         window.filterLeaderboard = filterLeaderboard;
         window.editBranchGroup = editBranchGroup;
         window.deleteBranchGroup = deleteBranchGroup;
+        window.exportMonthlyCSV = exportMonthlyCSV;
     </script>
 </body>
 

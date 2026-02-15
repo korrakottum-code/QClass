@@ -662,6 +662,7 @@ function attachGlobalEvents() {
         window.filterMissing = module.filterMissing;
         window.filterLeaderboard = module.filterLeaderboard;
         window.editBranchGroup = module.editBranchGroup; // NEW
+        window.exportMonthlyCSV = module.exportMonthlyCSV; // EXPORT
 
         // Init Dashboard if on dashboard page
         if (window.location.pathname.includes('dashboard.html')) {

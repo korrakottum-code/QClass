@@ -95,15 +95,18 @@ export async function initDashboard() {
 export function renderDashboard() {
     const zone = document.getElementById('dashboardZone');
     zone.innerHTML = `
-        <div class="flex gap-2 mb-4 overflow-x-auto pb-2">
-            <button onclick="switchTab('records')" id="tab-records" class="tab-btn active px-4 py-2 rounded-lg bg-sky-600 text-white font-bold text-sm whitespace-nowrap">
-                <i class="fa-solid fa-list mr-2"></i>รายการย้อนหลัง
+        <div class="grid grid-cols-4 gap-2 mb-4">
+            <button onclick="switchTab('records')" id="tab-records" class="tab-btn active px-2 py-2 rounded-lg bg-sky-600 text-white font-bold text-xs text-center">
+                <i class="fa-solid fa-list block text-base mb-0.5"></i>ย้อนหลัง
             </button>
-            <button onclick="switchTab('missing')" id="tab-missing" class="tab-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-600 font-bold text-sm whitespace-nowrap">
-                <i class="fa-solid fa-circle-exclamation mr-2"></i>ยังไม่ส่งยอด
+            <button onclick="switchTab('missing')" id="tab-missing" class="tab-btn px-2 py-2 rounded-lg bg-gray-200 text-gray-600 font-bold text-xs text-center">
+                <i class="fa-solid fa-circle-exclamation block text-base mb-0.5"></i>ยังไม่ส่ง
             </button>
-            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="tab-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-600 font-bold text-sm whitespace-nowrap">
-                <i class="fa-solid fa-trophy mr-2"></i>อันดับ
+            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="tab-btn px-2 py-2 rounded-lg bg-gray-200 text-gray-600 font-bold text-xs text-center">
+                <i class="fa-solid fa-trophy block text-base mb-0.5"></i>อันดับ
+            </button>
+            <button onclick="switchTab('export')" id="tab-export" class="tab-btn px-2 py-2 rounded-lg bg-gray-200 text-gray-600 font-bold text-xs text-center">
+                <i class="fa-solid fa-file-export block text-base mb-0.5"></i>Export
             </button>
         </div>
 
@@ -129,6 +132,7 @@ export function switchTab(tabName) {
     if (tabName === 'records') renderRecords();
     else if (tabName === 'missing') renderMissing();
     else if (tabName === 'leaderboard') renderLeaderboard();
+    else if (tabName === 'export') renderExport();
 }
 
 function renderRecords() {
@@ -821,3 +825,177 @@ export async function deleteBranchGroup(branchCode, date, branchName) {
     }
 }
 
+// --- EXPORT TAB ---
+function renderExport() {
+    const currentMonth = toLocalDateStr(new Date()).slice(0, 7);
+    const content = document.getElementById('dashboardContent');
+    content.innerHTML = `
+        <div class="mb-4 flex flex-col gap-4">
+            <div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                <h3 class="font-bold text-gray-700"><i class="fa-solid fa-file-export mr-2 text-emerald-500"></i>Export ข้อมูลรายเดือน</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-500">เดือน:</span>
+                    <input type="month" id="exportMonthFilter" value="${currentMonth}" class="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div id="exportPreview" class="bg-gray-50 rounded-xl p-4 border border-gray-200 min-h-[200px] flex items-center justify-center">
+                <div class="text-center text-gray-400">
+                    <i class="fa-solid fa-table text-4xl mb-2 opacity-50"></i>
+                    <p>เลือกเดือนแล้วกด Export</p>
+                </div>
+            </div>
+            <button onclick="exportMonthlyCSV()" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]">
+                <i class="fa-solid fa-download mr-2"></i>ดาวน์โหลด CSV
+            </button>
+        </div>
+    `;
+}
+
+export async function exportMonthlyCSV() {
+    const monthStr = document.getElementById('exportMonthFilter').value;
+    if (!monthStr) return;
+
+    const [year, month] = monthStr.split('-').map(Number);
+    const startDate = `${monthStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+    const preview = document.getElementById('exportPreview');
+    preview.innerHTML = `<div class="text-center py-6"><i class="fa-solid fa-spinner fa-spin text-emerald-500 text-2xl"></i><p class="text-gray-400 mt-2">กำลังดึงข้อมูล...</p></div>`;
+
+    try {
+        const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
+        const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${startDate}&endDate=${endDate}`);
+        const resData = await response.json();
+
+        let records = [];
+        if (resData.status === 'success' && Array.isArray(resData.records)) {
+            records = resData.records;
+        }
+
+        if (records.length === 0) {
+            preview.innerHTML = `<div class="text-center py-6 text-gray-400"><i class="fa-solid fa-box-open text-4xl mb-2 opacity-50"></i><p>ไม่พบข้อมูลเดือนนี้</p></div>`;
+            return;
+        }
+
+        // Build CSV rows
+        const csvRows = [];
+        csvRows.push(['วันที่', 'สาขา', 'หมวดหมู่', 'บริการ', 'จำนวนคิว'].join(','));
+
+        // Branch name lookup
+        const branchNameMap = {};
+        for (const [name, code] of Object.entries(state.branchMap)) {
+            branchNameMap[code] = name;
+        }
+
+        // Sort by date then branch
+        records.sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch));
+
+        let totalQue = 0;
+        records.forEach(rec => {
+            if (rec.items && Array.isArray(rec.items)) {
+                rec.items.forEach(item => {
+                    const branchName = branchNameMap[rec.branch] || rec.branch;
+                    const escapeCsv = (str) => {
+                        str = String(str || '');
+                        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                            return '"' + str.replace(/"/g, '""') + '"';
+                        }
+                        return str;
+                    };
+                    csvRows.push([
+                        escapeCsv(rec.date),
+                        escapeCsv(branchName + ' (' + rec.branch + ')'),
+                        escapeCsv(item.program),
+                        escapeCsv(item.sub),
+                        item.que
+                    ].join(','));
+                    totalQue += parseInt(item.que) || 0;
+                });
+            }
+        });
+
+        // Show preview summary
+        const uniqueDates = [...new Set(records.map(r => r.date))].length;
+        const uniqueBranches = [...new Set(records.map(r => r.branch))].length;
+
+        // Build branch summary table
+        const branchSummary = {};
+        records.forEach(rec => {
+            if (rec.items && Array.isArray(rec.items)) {
+                rec.items.forEach(item => {
+                    const code = rec.branch;
+                    if (!branchSummary[code]) {
+                        branchSummary[code] = { name: branchNameMap[code] || code, que: 0, days: new Set() };
+                    }
+                    branchSummary[code].que += parseInt(item.que) || 0;
+                    branchSummary[code].days.add(rec.date);
+                });
+            }
+        });
+        const branchRows = Object.values(branchSummary)
+            .sort((a, b) => b.que - a.que)
+            .map((b, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                <td class="px-2 py-1.5 text-xs font-medium text-gray-700">${b.name}</td>
+                <td class="px-2 py-1.5 text-xs text-center text-gray-500">${b.days.size}</td>
+                <td class="px-2 py-1.5 text-xs text-center font-bold text-emerald-600">${b.que}</td>
+            </tr>`).join('');
+
+        preview.innerHTML = `
+            <div class="w-full">
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="bg-sky-50 p-2.5 rounded-lg text-center">
+                        <div class="text-xl font-bold text-sky-600">${uniqueDates}</div>
+                        <div class="text-[10px] text-gray-400">วัน</div>
+                    </div>
+                    <div class="bg-emerald-50 p-2.5 rounded-lg text-center">
+                        <div class="text-xl font-bold text-emerald-600">${uniqueBranches}</div>
+                        <div class="text-[10px] text-gray-400">สาขา</div>
+                    </div>
+                    <div class="bg-indigo-50 p-2.5 rounded-lg text-center">
+                        <div class="text-xl font-bold text-indigo-600">${totalQue}</div>
+                        <div class="text-[10px] text-gray-400">คิวรวม</div>
+                    </div>
+                </div>
+                <div class="max-h-[250px] overflow-y-auto rounded-lg border border-gray-200">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase">สาขา</th>
+                                <th class="px-2 py-1.5 text-[10px] font-semibold text-gray-500 text-center uppercase">วัน</th>
+                                <th class="px-2 py-1.5 text-[10px] font-semibold text-gray-500 text-center uppercase">คิวรวม</th>
+                            </tr>
+                        </thead>
+                        <tbody>${branchRows}</tbody>
+                    </table>
+                </div>
+                <div class="text-xs text-gray-400 text-center mt-2"><i class="fa-solid fa-check-circle text-emerald-500 mr-1"></i>${records.length} แถว พร้อมดาวน์โหลด</div>
+            </div>
+        `;
+
+        // Trigger CSV download
+        const BOM = '\uFEFF';
+        const csvContent = BOM + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `QClass_${monthStr}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ดาวน์โหลดเรียบร้อย!',
+            text: `QClass_${monthStr}.csv`,
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+
+    } catch (e) {
+        console.error('Export Error:', e);
+        preview.innerHTML = `<div class="text-center py-6 text-red-400"><i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i><p>เกิดข้อผิดพลาด: ${e.message}</p></div>`;
+    }
+}

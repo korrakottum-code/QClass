@@ -878,11 +878,11 @@ export async function exportMonthlyCSV() {
             return;
         }
 
-        // Build CSV rows
+        // Build CSV rows — match Data sheet exactly: Day, Province, Program, Sub, Que
         const csvRows = [];
-        csvRows.push(['วันที่', 'สาขา', 'หมวดหมู่', 'บริการ', 'จำนวนคิว'].join(','));
+        csvRows.push(['Day', 'Province', 'Program', 'Sub', 'Que'].join(','));
 
-        // Branch name lookup
+        // Branch name lookup (for preview table only)
         const branchNameMap = {};
         for (const [name, code] of Object.entries(state.branchMap)) {
             branchNameMap[code] = name;
@@ -892,20 +892,19 @@ export async function exportMonthlyCSV() {
         records.sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch));
 
         let totalQue = 0;
+        const escapeCsv = (str) => {
+            str = String(str || '');
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        };
         records.forEach(rec => {
             if (rec.items && Array.isArray(rec.items)) {
                 rec.items.forEach(item => {
-                    const branchName = branchNameMap[rec.branch] || rec.branch;
-                    const escapeCsv = (str) => {
-                        str = String(str || '');
-                        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                            return '"' + str.replace(/"/g, '""') + '"';
-                        }
-                        return str;
-                    };
                     csvRows.push([
                         escapeCsv(rec.date),
-                        escapeCsv(branchName + ' (' + rec.branch + ')'),
+                        escapeCsv(rec.branch),
                         escapeCsv(item.program),
                         escapeCsv(item.sub),
                         item.que

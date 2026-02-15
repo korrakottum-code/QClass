@@ -34,16 +34,16 @@ function unmarkGroupDeleted(branchCode, date) {
     localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
 }
 
-// Filter out locally-deleted records AND records with all items que: 0
+// Filter out locally-deleted records only (keep que: 0 records as valid submissions)
 function cleanDeletedRecords(records) {
     const deleted = getDeletedGroups();
     return records.filter(rec => {
         // Filter out locally-deleted groups
         const key = `${rec.branch}|${rec.date}`;
         if (deleted[key]) return false;
-        // Also filter out records where all items have que: 0
+        // Keep all records including que: 0 (they are valid submissions)
         if (!rec.items || !Array.isArray(rec.items)) return false;
-        return rec.items.some(item => parseInt(item.que) > 0);
+        return true;
     });
 }
 

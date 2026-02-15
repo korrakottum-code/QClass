@@ -143,7 +143,32 @@ export function extractHeaderData(text) {
         }
     }
 
-    // 1. Standard Branch Map (from Sheet)
+    // 1. Extract branch name from "สาขา" pattern (e.g. สาขาสารคาม, สาขา สารคาม, (สาขา สารคาม))
+    if (!foundBranchCode) {
+        const branchPatterns = [
+            /\(?\s*สาขา\s*[:\s]?\s*([^\s\)\n,]+(?:\s+[^\s\)\n,]+)?)\s*\)?/gi,
+            /สาขา\s*([^\s\n,\)\(]+)/gi
+        ];
+
+        for (const pattern of branchPatterns) {
+            const matches = [...text.matchAll(pattern)];
+            if (matches.length > 0) {
+                const extractedName = matches[0][1].trim().toLowerCase();
+
+                // Try matching against branchMap (fuzzy: check if branch name contains or is contained by extracted name)
+                for (const [name, code] of Object.entries(state.branchMap)) {
+                    const nameLower = name.toLowerCase();
+                    if (nameLower.includes(extractedName) || extractedName.includes(nameLower)) {
+                        foundBranchCode = code;
+                        break;
+                    }
+                }
+                if (foundBranchCode) break;
+            }
+        }
+    }
+
+    // 2. Standard Branch Map - exact match (from Sheet)
     if (!foundBranchCode) {
         for (const [name, code] of Object.entries(state.branchMap)) {
             if (lowerText.includes(name.toLowerCase())) {
@@ -153,7 +178,7 @@ export function extractHeaderData(text) {
         }
     }
 
-    // 2. Hardcoded Fallbacks
+    // 3. Hardcoded Fallbacks
     if (!foundBranchCode) {
         if (lowerText.includes('ฉะเชิงเทรา')) foundBranchCode = 'CCO';
         else if (lowerText.includes('เครือสหพัฒน์') || lowerText.includes('สหพัฒน์')) foundBranchCode = 'SPN';
@@ -161,7 +186,8 @@ export function extractHeaderData(text) {
         else if (lowerText.includes('หอกาญ') || lowerText.includes('กาญจนบุรี')) foundBranchCode = 'KAN';
         else if (lowerText.includes('อุดร')) foundBranchCode = 'UDN';
         else if (lowerText.includes('ขอนแก่น') || lowerText.includes('กังสดาล')) foundBranchCode = 'KKC';
-        else if (lowerText.includes('โคราช')) foundBranchCode = 'KOR'; // Added per user request example
+        else if (lowerText.includes('โคราช')) foundBranchCode = 'KOR';
+        else if (lowerText.includes('สารคาม') || lowerText.includes('มหาสารคาม')) foundBranchCode = 'MKM';
     }
 
     const dateMatch = text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);

@@ -12,6 +12,41 @@ function toLocalDateStr(date) {
 
 let mockSubmissions = [];
 
+// --- LOCAL DELETE TRACKING (persists in localStorage) ---
+const DELETED_KEY = 'qclass_deleted_groups';
+
+function getDeletedGroups() {
+    try {
+        return JSON.parse(localStorage.getItem(DELETED_KEY) || '{}');
+    } catch { return {}; }
+}
+
+function markGroupDeleted(branchCode, date) {
+    const deleted = getDeletedGroups();
+    const key = `${branchCode}|${date}`;
+    deleted[key] = Date.now();
+    localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+}
+
+function unmarkGroupDeleted(branchCode, date) {
+    const deleted = getDeletedGroups();
+    delete deleted[`${branchCode}|${date}`];
+    localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+}
+
+// Filter out locally-deleted records AND records with all items que: 0
+function cleanDeletedRecords(records) {
+    const deleted = getDeletedGroups();
+    return records.filter(rec => {
+        // Filter out locally-deleted groups
+        const key = `${rec.branch}|${rec.date}`;
+        if (deleted[key]) return false;
+        // Also filter out records where all items have que: 0
+        if (!rec.items || !Array.isArray(rec.items)) return false;
+        return rec.items.some(item => parseInt(item.que) > 0);
+    });
+}
+
 export async function initDashboard() {
     // Show loading state
     const zone = document.getElementById('dashboardZone');
@@ -31,9 +66,9 @@ export async function initDashboard() {
 
 
         if (response && response.status === 'success' && Array.isArray(response.records)) {
-            mockSubmissions = response.records;
+            mockSubmissions = cleanDeletedRecords(response.records);
         } else if (Array.isArray(response)) {
-            mockSubmissions = response;
+            mockSubmissions = cleanDeletedRecords(response);
         } else {
             console.warn("Invalid data format or empty:", response);
             mockSubmissions = [];
@@ -115,7 +150,7 @@ function renderRecords() {
     filterRecords();
 }
 
-export function filterRecords() {
+export function filterRecords(skipFetch = false) {
     const date = document.getElementById('recordDateFilter').value;
     const container = document.getElementById('branchGroups');
     container.innerHTML = '';
@@ -125,7 +160,8 @@ export function filterRecords() {
     const hasDataForDate = mockSubmissions.some(s => s.date === date);
 
     // If no data found locally, attempt to fetch from server (Specific Date)
-    if (!hasDataForDate) {
+    // But skip fetching if we just deleted data (to avoid re-loading stale data from API)
+    if (!hasDataForDate && !skipFetch) {
         // This is sync in UI but async fetch. We need to handle this.
         // Since filterRecords is not async, we might need a loading state here.
         // Let's make filterRecords async or handle internal promise?
@@ -144,9 +180,11 @@ export function filterRecords() {
                 .then(r => r.json())
                 .then(res => {
                     if (res.status === 'success' && Array.isArray(res.records) && res.records.length > 0) {
-                        const newRecords = res.records.filter(n => !mockSubmissions.some(o => o.id === n.id));
-                        mockSubmissions = [...mockSubmissions, ...newRecords];
-                        filterRecords(); // Recursion (Safe because now hasDataForDate will be true or records still empty meaning truly no data)
+                        const activeRecords = cleanDeletedRecords(res.records);
+                        // Replace records for this date instead of appending (prevents accumulation bug)
+                        mockSubmissions = mockSubmissions.filter(s => s.date !== date);
+                        mockSubmissions = [...mockSubmissions, ...activeRecords];
+                        filterRecords();
                     } else {
                         // Truly empty
                         container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
@@ -350,11 +388,11 @@ export async function filterMissing() {
             const response = await fetch(`${apiUrl}?action=get_dashboard&startDate=${startDate}&endDate=${endDateStr}`);
             const resData = await response.json();
             if (resData.status === 'success' && Array.isArray(resData.records)) {
-                records = resData.records;
-                // Update Local Cache (Optional but good)
-                // Filter duplicates
-                const newRecords = records.filter(n => !mockSubmissions.some(o => o.id === n.id));
-                mockSubmissions = [...mockSubmissions, ...newRecords];
+                records = cleanDeletedRecords(resData.records);
+                // Replace records for fetched date range instead of appending (prevents accumulation bug)
+                const fetchedDates = new Set(records.map(r => r.date));
+                mockSubmissions = mockSubmissions.filter(s => !fetchedDates.has(s.date));
+                mockSubmissions = [...mockSubmissions, ...records];
             }
         }
 
@@ -768,6 +806,9 @@ export async function deleteBranchGroup(branchCode, date, branchName) {
         // Remove from local cache
         mockSubmissions = mockSubmissions.filter(s => !(s.branch === branchCode && s.date === date));
 
+        // Track deletion in localStorage (persists across page refreshes)
+        markGroupDeleted(branchCode, date);
+
         Swal.fire({
             icon: 'success',
             title: 'ลบเรียบร้อย!',
@@ -778,7 +819,7 @@ export async function deleteBranchGroup(branchCode, date, branchName) {
             position: 'top-end'
         });
 
-        filterRecords(); // Re-render
+        filterRecords(true); // Re-render, skip refetch to avoid reloading stale data from API
     } catch (err) {
         Swal.fire({
             icon: 'error',

@@ -375,6 +375,26 @@ function attachGlobalEvents() {
         const branchSelect = document.getElementById('branchInput');
         const branchName = branchSelect.options[branchSelect.selectedIndex]?.text || branchSelect.value;
         const branchCode = branchSelect.value;
+
+        // --- BRANCH VALIDATION ---
+        if (!branchCode) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ยังไม่ได้เลือกสาขา!',
+                html: '<p class="text-sm text-gray-600">กรุณาเลือกสาขาก่อนบันทึกข้อมูลครับ</p>',
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#f59e0b'
+            });
+            // Highlight the branch dropdown
+            branchSelect.focus();
+            branchSelect.style.border = '2px solid #ef4444';
+            branchSelect.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.2)';
+            setTimeout(() => {
+                branchSelect.style.border = '';
+                branchSelect.style.boxShadow = '';
+            }, 3000);
+            return;
+        }
         const totalQue = items.reduce((sum, item) => sum + item.que, 0);
         const totalItems = items.length;
 
@@ -392,11 +412,15 @@ function attachGlobalEvents() {
             const response = await fetch(`${API_URL}?action=get_dashboard&startDate=${date}&endDate=${date}&_=${Date.now()}`);
             const resData = await response.json();
 
-            // Filter checking for SAME Branch
+            // Filter checking for SAME Branch, excluding deleted records (que: 0)
             let duplicateRecords = [];
             if (resData.status === 'success' && Array.isArray(resData.records)) {
-                // Ensure Strict Comparison but trim just in case
-                duplicateRecords = resData.records.filter(r => r.branch === branchCode);
+                duplicateRecords = resData.records.filter(r => {
+                    if (r.branch !== branchCode) return false;
+                    // Exclude records where all items have que: 0 (deleted)
+                    if (!r.items || !Array.isArray(r.items)) return false;
+                    return r.items.some(item => parseInt(item.que) > 0);
+                });
             }
 
             if (duplicateRecords.length > 0) {
@@ -662,7 +686,12 @@ async function checkDuplicateRecords(date, branchCode) {
         Swal.close(); // Close loading
 
         if (resData.status === 'success' && Array.isArray(resData.records)) {
-            const duplicates = resData.records.filter(r => r.branch === branchCode);
+            // Filter by branch AND exclude deleted records (all items que: 0)
+            const duplicates = resData.records.filter(r => {
+                if (r.branch !== branchCode) return false;
+                if (!r.items || !Array.isArray(r.items)) return false;
+                return r.items.some(item => parseInt(item.que) > 0);
+            });
 
             if (duplicates.length > 0) {
                 // Aggregate items for summary

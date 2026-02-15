@@ -777,31 +777,23 @@ export async function deleteBranchGroup(branchCode, date, branchName) {
 
     try {
         const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
-        const allPromises = [];
 
-        groupRecords.forEach(rec => {
-            rec.items.forEach(item => {
-                const payload = {
-                    action: 'update_record',
-                    date: rec.date,
-                    branch: rec.branch,
-                    program: item.program,
-                    sub: item.sub || '',
-                    que: 0  // Zero out = delete
-                };
-                const queryString = new URLSearchParams(payload).toString();
-                allPromises.push(
-                    fetch(`${apiUrl}?${queryString}`)
-                        .then(r => r.text())
-                        .then(text => {
-                            try { return JSON.parse(text); }
-                            catch (e) { throw new Error('Server returned invalid response'); }
-                        })
-                );
-            });
-        });
+        // Single API call to delete all rows for this branch+date
+        const payload = {
+            action: 'delete_record',
+            date: date,
+            branch: branchCode
+        };
+        const queryString = new URLSearchParams(payload).toString();
+        const response = await fetch(`${apiUrl}?${queryString}`);
+        const text = await response.text();
+        let result2;
+        try { result2 = JSON.parse(text); }
+        catch (e) { throw new Error('Server returned invalid response'); }
 
-        await Promise.all(allPromises);
+        if (result2.status !== 'success') {
+            throw new Error(result2.message || 'Delete failed on server');
+        }
 
         // Remove from local cache
         mockSubmissions = mockSubmissions.filter(s => !(s.branch === branchCode && s.date === date));

@@ -240,7 +240,7 @@ export function filterRecords(skipFetch = false) {
 
         // Summary Side (Left)
         let itemsSummary = '';
-        // Summarize by Program
+        const itemCounts = {};
         group.records.forEach(rec => {
             rec.items.forEach(item => {
                 const key = item.program;

@@ -240,17 +240,24 @@ export function filterRecords(skipFetch = false) {
 
         // Summary Side (Left)
         let itemsSummary = '';
-        const itemCounts = {};
+        // Summarize by Program
         group.records.forEach(rec => {
             rec.items.forEach(item => {
-                const key = item.program; // Summarize by Program
-                itemCounts[key] = (itemCounts[key] || 0) + parseInt(item.que);
+                const key = item.program;
+                if (!itemCounts[key]) itemCounts[key] = { que: 0, newQue: 0, oldQue: 0 };
+                itemCounts[key].que += parseInt(item.que) || 0;
+                itemCounts[key].newQue += parseInt(item.newQue) || 0;
+                itemCounts[key].oldQue += parseInt(item.oldQue) || 0;
             });
         });
 
-        // Show top 2 programs + "..."
+        // Show top 3 programs + "..."
         const keys = Object.keys(itemCounts);
-        itemsSummary = keys.slice(0, 3).map(k => `<span class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded mr-1">${k} ${itemCounts[k]}</span>`).join('');
+        itemsSummary = keys.slice(0, 3).map(k => {
+            const v = itemCounts[k];
+            const breakdown = (v.newQue > 0 || v.oldQue > 0) ? ` <span class="opacity-60 text-[10px]">(${v.newQue}/${v.oldQue})</span>` : '';
+            return `<span class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded mr-1">${k} ${v.que}${breakdown}</span>`;
+        }).join('');
         if (keys.length > 3) itemsSummary += `<span class="text-xs text-gray-400">+${keys.length - 3}</span>`;
 
         card.innerHTML = `
@@ -507,10 +514,18 @@ function renderLeaderboard() {
     const pastStr = toLocalDateStr(pastDate);
 
     content.innerHTML = `
-        <div class="mb-4 flex justify-between items-center">
+        <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
                 <h3 class="font-bold text-gray-700"><i class="fa-solid fa-trophy text-yellow-500 mr-2"></i>อันดับยอดจองสูงสุด</h3>
                 <p class="text-xs text-gray-400">ข้อมูลย้อนหลัง 7 วัน (${pastStr} - ${dateStr})</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500">จัดตาม:</span>
+                <select id="leaderboardType" onchange="filterLeaderboard()" class="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-yellow-400 shadow-sm">
+                    <option value="total">คิวรวม (Total)</option>
+                    <option value="new">ลูกค้าใหม่ (New)</option>
+                    <option value="old">ลูกค้าเก่า (Old)</option>
+                </select>
             </div>
         </div>
         <div class="space-y-2" id="leaderList"></div>
@@ -532,6 +547,7 @@ export function filterLeaderboard() {
 
     // 2. Filter & Aggregate
     const branchTotals = {};
+    const rankType = document.getElementById('leaderboardType')?.value || 'total';
 
     mockSubmissions.forEach(record => {
         const recDate = new Date(record.date);
@@ -542,15 +558,24 @@ export function filterLeaderboard() {
                 branchTotals[branchCode] = {
                     code: branchCode,
                     name: Object.keys(state.branchMap).find(key => state.branchMap[key] === branchCode) || branchCode,
-                    total: 0
+                    total: 0,
+                    newTotal: 0,
+                    oldTotal: 0
                 };
             }
             branchTotals[branchCode].total += parseInt(record.totalQue) || 0;
+            
+            // Sum up items for new/old
+            record.items.forEach(item => {
+                branchTotals[branchCode].newTotal += parseInt(item.newQue) || 0;
+                branchTotals[branchCode].oldTotal += parseInt(item.oldQue) || 0;
+            });
         }
     });
 
     // 3. Convert to Array and Sort
-    const ranking = Object.values(branchTotals).sort((a, b) => b.total - a.total);
+    const sortKey = rankType === 'new' ? 'newTotal' : (rankType === 'old' ? 'oldTotal' : 'total');
+    const ranking = Object.values(branchTotals).sort((a, b) => b[sortKey] - a[sortKey]);
 
     if (ranking.length === 0) {
         list.innerHTML = `<div class="text-center py-10 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
@@ -578,6 +603,10 @@ export function filterLeaderboard() {
             icon = '<span class="font-bold w-6 text-center text-orange-600 text-lg">3</span>';
         }
 
+        const itmValue = item[sortKey];
+        const itmLabel = rankType === 'new' ? 'ลูกค้าใหม่' : (rankType === 'old' ? 'ลูกค้าเก่า' : 'คิวรวม');
+        const itmColor = rankType === 'new' ? 'text-sky-600' : (rankType === 'old' ? 'text-amber-600' : 'text-emerald-600');
+
         const div = document.createElement('div');
         div.className = `p-4 rounded-xl border flex justify-between items-center transition-transform hover:scale-[1.01] ${rankClass}`;
         div.innerHTML = `
@@ -585,11 +614,12 @@ export function filterLeaderboard() {
                 <div class="w-10 flex justify-center">${icon}</div>
                 <div class="flex flex-col">
                     <span class="${textClass} text-lg">${item.name}</span>
+                    <span class="text-[10px] text-gray-400">${item.newTotal} ใหม่ / ${item.oldTotal} เก่า</span>
                 </div>
             </div>
             <div class="text-right">
-                <span class="font-bold text-2xl text-sky-600">${item.total}</span>
-                <span class="text-xs text-gray-400 block">คิวรวม</span>
+                <span class="font-bold text-2xl ${itmColor}">${itmValue}</span>
+                <span class="text-xs text-gray-400 block">${itmLabel}</span>
             </div>
         `;
         list.appendChild(div);
@@ -614,12 +644,30 @@ export function editBranchGroup(branchCode, date) {
                         <div class="text-xs text-gray-500 ml-4">${item.sub || '-'}</div>
                     </div>
                 </div>
-                <div class="flex items-center justify-between bg-gray-50 p-2 rounded">
-                    <span class="text-xs text-gray-500">จำนวนคิว:</span>
-                    <div class="flex items-center gap-2">
-                        <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, -1)" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-red-500 hover:bg-red-50 hover:border-red-200 shadow-sm flex items-center justify-center transition-colors"><i class="fa-solid fa-minus text-xs"></i></button>
-                        <input type="number" id="input-${rec.id}-${itemIdx}" value="${item.que}" class="w-12 text-center text-lg font-bold text-gray-700 bg-transparent border-none focus:ring-0 p-0" readonly>
-                        <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 1)" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-green-500 hover:bg-green-50 hover:border-green-200 shadow-sm flex items-center justify-center transition-colors"><i class="fa-solid fa-plus text-xs"></i></button>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-sky-50 p-1.5 rounded text-center relative pt-4">
+                        <span class="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] text-sky-600 font-bold uppercase">ใหม่</span>
+                        <div class="flex items-center justify-between">
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'newQue', -1)" class="w-6 h-6 rounded-full bg-white border border-sky-200 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                            <input type="number" id="input-new-${rec.id}-${itemIdx}" value="${item.newQue || 0}" class="w-8 text-center text-sm font-bold text-sky-700 bg-transparent border-none p-0" readonly>
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'newQue', 1)" class="w-6 h-6 rounded-full bg-white border border-sky-200 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <div class="bg-amber-50 p-1.5 rounded text-center relative pt-4">
+                        <span class="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] text-amber-600 font-bold uppercase">เก่า</span>
+                        <div class="flex items-center justify-between">
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'oldQue', -1)" class="w-6 h-6 rounded-full bg-white border border-amber-200 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                            <input type="number" id="input-old-${rec.id}-${itemIdx}" value="${item.oldQue || 0}" class="w-8 text-center text-sm font-bold text-amber-700 bg-transparent border-none p-0" readonly>
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'oldQue', 1)" class="w-6 h-6 rounded-full bg-white border border-amber-200 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-100 p-1.5 rounded text-center relative pt-4">
+                        <span class="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] text-gray-500 font-bold uppercase">รวม</span>
+                        <div class="flex items-center justify-between">
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'que', -1)" class="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-500 flex items-center justify-center"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                            <input type="number" id="input-que-${rec.id}-${itemIdx}" value="${item.que}" class="w-8 text-center text-sm font-bold text-gray-700 bg-transparent border-none p-0" readonly>
+                            <button type="button" onclick="adjustQue('${rec.id}', ${itemIdx}, 'que', 1)" class="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-500 flex items-center justify-center"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -655,14 +703,15 @@ export function editBranchGroup(branchCode, date) {
                     if (input) {
                         // Check dirty flag set by adjustQue
                         if (item._dirty) {
-                            const newVal = parseInt(input.value);
                             const payload = {
                                 action: 'update_record',
                                 date: rec.date,
                                 branch: rec.branch,
                                 program: item.program,
                                 sub: item.sub || '',
-                                que: newVal
+                                que: parseInt(document.getElementById(`input-que-${rec.id}-${itemIdx}`).value),
+                                newQue: parseInt(document.getElementById(`input-new-${rec.id}-${itemIdx}`).value) || 0,
+                                oldQue: parseInt(document.getElementById(`input-old-${rec.id}-${itemIdx}`).value) || 0
                             };
 
                             const apiUrl = localStorage.getItem('API_URL') || DEFAULT_API_URL;
@@ -681,7 +730,6 @@ export function editBranchGroup(branchCode, date) {
                                     .then(res => {
                                         if (res.status === 'success') {
                                             delete item._dirty; // Clear dirty flag
-                                            item.que = newVal; // Confirm local update
                                         } else {
                                             throw new Error(res.message);
                                         }
@@ -727,20 +775,37 @@ export function editBranchGroup(branchCode, date) {
 }
 
 // Helper for adjusting queue count in modal
-window.adjustQue = (recId, itemIdx, delta) => {
+window.adjustQue = (recId, itemIdx, field, delta) => {
     const record = mockSubmissions.find(s => s.id === recId);
     if (record && record.items[itemIdx]) {
-        let newVal = parseInt(record.items[itemIdx].que) + delta;
+        const item = record.items[itemIdx];
+        let newVal = (parseInt(item[field]) || 0) + delta;
         if (newVal < 0) newVal = 0;
 
-        record.items[itemIdx].que = newVal;
-        record.items[itemIdx]._dirty = true;
+        item[field] = newVal;
+        item._dirty = true;
 
-        record.totalQue += delta;
+        // Auto-sync Total if New/Old adjusted
+        if (field === 'newQue' || field === 'oldQue') {
+            const oldTotal = item.que;
+            item.que = (parseInt(item.newQue) || 0) + (parseInt(item.oldQue) || 0);
+            const totalDelta = item.que - oldTotal;
+            record.totalQue += totalDelta;
+        } else if (field === 'que') {
+            // If total adjusted directly, we don't know breakdown, so just update record total
+            record.totalQue += delta;
+        }
+
         if (record.totalQue < 0) record.totalQue = 0;
 
-        const input = document.getElementById(`input-${recId}-${itemIdx}`);
-        if (input) input.value = newVal;
+        // Update UI inputs
+        const inputQue = document.getElementById(`input-que-${recId}-${itemIdx}`);
+        const inputNew = document.getElementById(`input-new-${recId}-${itemIdx}`);
+        const inputOld = document.getElementById(`input-old-${recId}-${itemIdx}`);
+
+        if (inputQue) inputQue.value = item.que;
+        if (inputNew) inputNew.value = item.newQue || 0;
+        if (inputOld) inputOld.value = item.oldQue || 0;
     }
 };
 
@@ -878,9 +943,9 @@ export async function exportMonthlyCSV() {
             return;
         }
 
-        // Build CSV rows — match Data sheet exactly: Day, Province, Program, Sub, Que
+        // Build CSV rows — match Data sheet exactly: Day, Province, Program, Sub, Que, New, Old
         const csvRows = [];
-        csvRows.push(['Day', 'Province', 'Program', 'Sub', 'Que'].join(','));
+        csvRows.push(['Day', 'Province', 'Program', 'Sub', 'Que', 'ลูกค้าใหม่', 'ลูกค้าเก่า'].join(','));
 
         // Branch name lookup (for preview table only)
         const branchNameMap = {};
@@ -891,7 +956,8 @@ export async function exportMonthlyCSV() {
         // Sort by date then branch
         records.sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch));
 
-        let totalQue = 0;
+        let totalNew = 0;
+        let totalOld = 0;
         const escapeCsv = (str) => {
             str = String(str || '');
             if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -907,9 +973,13 @@ export async function exportMonthlyCSV() {
                         escapeCsv(rec.branch),
                         escapeCsv(item.program),
                         escapeCsv(item.sub),
-                        item.que
+                        item.que,
+                        item.newQue || 0,
+                        item.oldQue || 0
                     ].join(','));
                     totalQue += parseInt(item.que) || 0;
+                    totalNew += parseInt(item.newQue) || 0;
+                    totalOld += parseInt(item.oldQue) || 0;
                 });
             }
         });
@@ -954,6 +1024,7 @@ export async function exportMonthlyCSV() {
                     <div class="bg-indigo-50 p-2.5 rounded-lg text-center">
                         <div class="text-xl font-bold text-indigo-600">${totalQue}</div>
                         <div class="text-[10px] text-gray-400">คิวรวม</div>
+                        <div class="text-[9px] text-gray-400 opacity-80">${totalNew} ใหม่ / ${totalOld} เก่า</div>
                     </div>
                 </div>
                 <div class="max-h-[250px] overflow-y-auto rounded-lg border border-gray-200">

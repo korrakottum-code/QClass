@@ -62,7 +62,11 @@ export function updateDetectedItem(index, field, value) {
         item.sub = '';
         item.verified = false;
     } else if (field === 'que') {
-        item.que = parseInt(value);
+        item.que = parseInt(value) || 0;
+    } else if (field === 'newQue') {
+        item.newQue = parseInt(value) || 0;
+    } else if (field === 'oldQue') {
+        item.oldQue = parseInt(value) || 0;
     } else if (field === 'sub') {
         item.sub = value;
         item.verified = false;

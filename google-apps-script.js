@@ -158,7 +158,7 @@ function getDashboardData(e) {
             date: dateVal,
             branch: row[1],
             totalQue: row[4],
-            items: [{ program: row[2], sub: row[3], que: row[4] }]
+            items: [{ program: row[2], sub: row[3], que: row[4], newQue: row[5] || 0, oldQue: row[6] || 0 }]
         };
     }).filter(function (r) { return r !== null; });
 
@@ -170,10 +170,10 @@ function saveDataToSheet(data) {
     var sheet = ss.getSheetByName(DATA_SHEET_NAME);
     if (!sheet) {
         sheet = ss.insertSheet(DATA_SHEET_NAME);
-        sheet.appendRow(['Day', 'Province', 'Program', 'Sub', 'Que']);
+        sheet.appendRow(['Day', 'Province', 'Program', 'Sub', 'Que', 'ลูกค้าใหม่', 'ลูกค้าเก่า']);
     }
     data.items.forEach(function (item) {
-        sheet.appendRow([data.date, data.branch, item.program, item.sub || item.program, item.que]);
+        sheet.appendRow([data.date, data.branch, item.program, item.sub || item.program, item.que, item.newQue || 0, item.oldQue || 0]);
     });
 }
 
@@ -188,6 +188,8 @@ function updateRecord(e) {
     var targetProgram = p.program;
     var targetSub = p.sub;
     var newQue = p.que;
+    var newOldQue = p.oldQue || 0;
+    var newNewQue = p.newQue || 0;
 
     var data = sheet.getDataRange().getValues();
     var updated = false;
@@ -199,6 +201,8 @@ function updateRecord(e) {
 
         if (rowDate === targetDate && row[1] === targetBranch && row[2] === targetProgram && matchSub) {
             sheet.getRange(i + 1, 5).setValue(newQue);
+            sheet.getRange(i + 1, 6).setValue(newNewQue);
+            sheet.getRange(i + 1, 7).setValue(newOldQue);
             updated = true;
             break;
         }

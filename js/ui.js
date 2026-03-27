@@ -121,13 +121,24 @@ export function renderDetected() {
                         ${catOptions}
                     </select>
                 </div>
-                <div class="col-span-6">
+                <div class="col-span-4">
                     <select data-index="${index}" data-field="sub" class="detected-input w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-none font-bold text-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shadow-sm">
                         ${subOptions}
                     </select>
                 </div>
-                <div class="col-span-2">
-                    <input type="number" min="1" value="${item.que}" data-index="${index}" data-field="que" class="detected-input w-full text-center bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shadow-sm">
+                <div class="col-span-4 flex gap-1">
+                    <div class="w-1/3 relative pt-3">
+                        <span class="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-sky-600">ใหม่</span>
+                        <input type="number" min="0" value="${item.newQue || 0}" data-index="${index}" data-field="newQue" class="detected-input w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-bold text-sky-600 outline-none focus:border-indigo-500 shadow-sm">
+                    </div>
+                    <div class="w-1/3 relative pt-3">
+                        <span class="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-amber-600">เก่า</span>
+                        <input type="number" min="0" value="${item.oldQue || 0}" data-index="${index}" data-field="oldQue" class="detected-input w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-bold text-amber-600 outline-none focus:border-indigo-500 shadow-sm">
+                    </div>
+                    <div class="w-1/3 relative pt-3">
+                        <span class="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-gray-500">รวม</span>
+                        <input type="number" min="1" value="${item.que}" data-index="${index}" data-field="que" class="detected-input w-full text-center bg-white border border-gray-200 rounded p-1 text-xs font-bold outline-none focus:border-indigo-500 shadow-sm">
+                    </div>
                 </div>
             </div>
             ${verifyBtnHtml}
@@ -221,8 +232,17 @@ function attachDetectedEvents() {
                 // ------------------------
 
                 renderDetected();
-            } else if (field === 'que') {
-                updateDetectedItem(index, 'que', value);
+            } else if (field === 'que' || field === 'newQue' || field === 'oldQue') {
+                updateDetectedItem(index, field, value);
+                
+                if (field === 'newQue' || field === 'oldQue') {
+                    const itm = state.detectedItems[index];
+                    const total = (parseInt(itm.newQue) || 0) + (parseInt(itm.oldQue) || 0);
+                    if (total > 0) {
+                        updateDetectedItem(index, 'que', total);
+                    }
+                }
+                
                 renderDetected();
             }
         });

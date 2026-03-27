@@ -84,11 +84,13 @@ export function processSmartInput(text) {
             line.includes("ปิดจอง") || line.includes("ลูกค้า") || line.includes("ยอดหน้าเพจ") ||
             line.includes("เริ่มเวลา") || line.startsWith("รวม") || line.includes("_____")) return;
 
-        const match = line.match(/^(.*?)\s+(\d+)(?:\s*คน)?$/i);
+        const match = line.match(/^(.*?)\s+(\d+)(?:\s*คน)?(?:\s*\(\s*(\d+)\s*[/|,]\s*(\d+)\s*\))?$/i);
 
         if (match) {
             let name = match[1].trim();
             let qty = parseInt(match[2]);
+            let newQ = match[3] ? parseInt(match[3]) : 0;
+            let oldQ = match[4] ? parseInt(match[4]) : 0;
 
             if (qty > 100) return;
 
@@ -100,6 +102,8 @@ export function processSmartInput(text) {
                     originalName: name,
                     sub: identified.sub,
                     que: qty,
+                    newQue: newQ,
+                    oldQue: oldQ,
                     verified: false
                 });
             }

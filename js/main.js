@@ -204,7 +204,9 @@ function attachGlobalEvents() {
     window.addManualItem = () => {
         const program = document.getElementById('programInput').value;
         const sub = document.getElementById('subInput').value;
-        const que = parseInt(document.getElementById('queInput').value);
+        const que = parseInt(document.getElementById('queInput').value) || 0;
+        const newQue = parseInt(document.getElementById('newQueInput').value) || 0;
+        const oldQue = parseInt(document.getElementById('oldQueInput').value) || 0;
 
         if (!program || !sub) {
             Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'เลือกหมวดหมู่และบริการย่อย', timer: 1000, showConfirmButton: false });
@@ -217,6 +219,8 @@ function attachGlobalEvents() {
             program,
             sub,
             que,
+            newQue,
+            oldQue,
             verified: true // Manual items are always verified
         };
 
@@ -229,6 +233,8 @@ function attachGlobalEvents() {
 
         // Reset inputs
         document.getElementById('queInput').value = 1;
+        document.getElementById('newQueInput').value = 0;
+        document.getElementById('oldQueInput').value = 0;
 
         // Optional: Scroll to list?
     };
@@ -564,7 +570,9 @@ function attachGlobalEvents() {
                     branch: rec.branch,
                     program: item.program,
                     sub: item.sub || '',
-                    que: 0 // DELETE (Zero out)
+                    que: 0, // DELETE (Zero out)
+                    newQue: 0,
+                    oldQue: 0
                 };
                 const queryString = new URLSearchParams(payload).toString();
                 return fetch(`${API_URL}?${queryString}`).then(r => r.json());
@@ -593,6 +601,8 @@ function attachGlobalEvents() {
                         program: item.program,
                         sub: item.sub || '',
                         que: parseInt(item.que),
+                        newQue: parseInt(item.newQue) || 0,
+                        oldQue: parseInt(item.oldQue) || 0,
                         verified: true // Already from DB, so verified
                     });
                 }
